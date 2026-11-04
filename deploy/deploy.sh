@@ -11,6 +11,8 @@
 # Needs locally: pnpm, rsync, ssh (+ Docker for BUILD_ON=local). Server: Docker for remote builds.
 # The remote user needs passwordless sudo for the commands below.
 set -euo pipefail
+# $REL and $BUILD_IMAGE are deliberately expanded locally inside ssh command strings.
+# shellcheck disable=SC2029
 
 HOST="${1:?usage: deploy.sh user@host}"
 BUILD_ON="${BUILD_ON:-remote}"
