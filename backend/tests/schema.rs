@@ -30,7 +30,14 @@ async fn six_roles_are_seeded(pool: PgPool) {
         .unwrap();
     assert_eq!(
         roles,
-        ["admin", "auditor", "cashier", "delivery_driver", "manager", "stock_operator"]
+        [
+            "admin",
+            "auditor",
+            "cashier",
+            "delivery_driver",
+            "manager",
+            "stock_operator"
+        ]
     );
 }
 
@@ -50,8 +57,16 @@ async fn driver_role_has_only_own_scoped_permissions(pool: PgPool) {
 #[sqlx::test]
 async fn cashier_cannot_manage_users_or_adjust_stock(pool: PgPool) {
     let p = role_perms(&pool, "cashier").await;
-    for forbidden in ["users.manage", "inventory.adjust", "orders.void", "settings.manage"] {
-        assert!(!p.contains(&forbidden.to_string()), "cashier has {forbidden}");
+    for forbidden in [
+        "users.manage",
+        "inventory.adjust",
+        "orders.void",
+        "settings.manage",
+    ] {
+        assert!(
+            !p.contains(&forbidden.to_string()),
+            "cashier has {forbidden}"
+        );
     }
     assert!(p.contains(&"orders.create".to_string()));
 }
@@ -59,14 +74,20 @@ async fn cashier_cannot_manage_users_or_adjust_stock(pool: PgPool) {
 #[sqlx::test]
 async fn manager_lacks_admin_and_driver_permissions(pool: PgPool) {
     let p = role_perms(&pool, "manager").await;
-    assert!(!p.iter().any(|x| x == "users.manage" || x == "settings.manage" || x.ends_with("_own")));
+    assert!(
+        !p.iter()
+            .any(|x| x == "users.manage" || x == "settings.manage" || x.ends_with("_own"))
+    );
     assert!(p.contains(&"inventory.adjust".to_string()));
 }
 
 #[sqlx::test]
 async fn auditor_is_read_only(pool: PgPool) {
     let p = role_perms(&pool, "auditor").await;
-    assert!(p.iter().all(|x| x.ends_with(".read") || x == "audit.read"), "{p:?}");
+    assert!(
+        p.iter().all(|x| x.ends_with(".read") || x == "audit.read"),
+        "{p:?}"
+    );
     assert!(p.contains(&"audit.read".to_string()));
 }
 
@@ -74,8 +95,15 @@ async fn auditor_is_read_only(pool: PgPool) {
 async fn usernames_are_case_insensitive_unique(pool: PgPool) {
     let ins = "INSERT INTO users (id, username, display_name, password_hash) VALUES (gen_random_uuid(), $1, 'x', 'h')";
     sqlx::query(ins).bind("Dinah").execute(&pool).await.unwrap();
-    let err = sqlx::query(ins).bind("dinah").execute(&pool).await.unwrap_err();
-    assert_eq!(err.as_database_error().unwrap().code().as_deref(), Some("23505"));
+    let err = sqlx::query(ins)
+        .bind("dinah")
+        .execute(&pool)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        err.as_database_error().unwrap().code().as_deref(),
+        Some("23505")
+    );
 }
 
 #[sqlx::test]
@@ -93,5 +121,11 @@ async fn users_with_sessions_cannot_be_deleted(pool: PgPool) {
     .execute(&pool)
     .await
     .unwrap();
-    assert!(sqlx::query("DELETE FROM users WHERE id = $1").bind(uid).execute(&pool).await.is_err());
+    assert!(
+        sqlx::query("DELETE FROM users WHERE id = $1")
+            .bind(uid)
+            .execute(&pool)
+            .await
+            .is_err()
+    );
 }

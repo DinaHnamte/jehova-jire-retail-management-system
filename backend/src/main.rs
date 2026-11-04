@@ -12,7 +12,16 @@ async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         None | Some("serve") => serve(config).await,
-        Some(other) => anyhow::bail!("unknown command `{other}` (expected: serve)"),
+        Some("migrate") => {
+            let pool = connect(&config).await?;
+            MIGRATOR.run(&pool).await.context("running migrations")?;
+            tracing::info!("migrations applied");
+            Ok(())
+        }
+        Some("create-admin") => create_admin(config, &args[1..]).await,
+        Some(other) => {
+            anyhow::bail!("unknown command `{other}` (expected: serve | migrate | create-admin)")
+        }
     }
 }
 
@@ -25,6 +34,35 @@ fn init_tracing(config: &Config) {
     } else {
         builder.init();
     }
+}
+
+/// `create-admin --username <u> --display-name <name>`; password from
+/// `JJ_ADMIN_PASSWORD` or an interactive prompt (not echoed).
+async fn create_admin(config: Config, args: &[String]) -> Result<()> {
+    let flag = |name: &str| {
+        args.iter()
+            .position(|a| a == name)
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+    };
+    let username = flag("--username").context("--username is required")?;
+    let display_name = flag("--display-name").unwrap_or_else(|| username.clone());
+    let password = match std::env::var("JJ_ADMIN_PASSWORD") {
+        Ok(p) => p,
+        Err(_) => {
+            let p = rpassword::prompt_password("Password: ")?;
+            if p != rpassword::prompt_password("Repeat password: ")? {
+                anyhow::bail!("passwords do not match");
+            }
+            p
+        }
+    };
+    let pool = connect(&config).await?;
+    let id = jj_retail_api::admin::create_admin(&pool, &username, &display_name, &password)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    println!("Created administrator {username} ({id})");
+    Ok(())
 }
 
 async fn connect(config: &Config) -> Result<sqlx::PgPool> {
