@@ -2,11 +2,17 @@
 
 One Linux VPS (Operations.md §1). Run the one-time setup once, then `deploy/deploy.sh` for every release.
 
+**Production:** `debian@15.235.247.241` (Debian 13, x86-64), site `https://jehovah-jire.hnamtek.in`
+behind Cloudflare's proxy (SSL/TLS mode must be **Full (strict)**). PostgreSQL 17 from Debian,
+Caddy from the official Caddy apt repository (the Caddyfile needs Caddy 2.7+). The API binary is
+compiled on the server inside Docker (`BUILD_ON=remote`, the default), so Docker must stay installed.
+
 ## One-time server setup (Ubuntu/Debian)
 
 ```sh
 # Packages
-sudo apt update && sudo apt install -y postgresql caddy rsync curl unattended-upgrades
+sudo apt update && sudo apt install -y postgresql rsync curl unattended-upgrades docker.io
+# Caddy 2.7+ from the official repo: https://caddyserver.com/docs/install#debian-ubuntu-raspbian
 
 # Service user and directories
 sudo useradd --system --home /var/lib/jj-retail --shell /usr/sbin/nologin jj-retail
