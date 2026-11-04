@@ -1,0 +1,14 @@
+# Development database only. Production runs PostgreSQL directly on the server (Operations.md §1).
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: jj_retail
+      POSTGRES_PASSWORD: jj_retail
+      POSTGRES_DB: jj_retail
+    ports:
+      - "5433:5432"
+    volumes:
+      - jj_retail_pg:/var/lib/postgresql/data
+volumes:
+  jj_retail_pg:
