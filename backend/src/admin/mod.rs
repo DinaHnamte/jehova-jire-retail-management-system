@@ -1,6 +1,10 @@
 //! Users, roles, sessions and authentication.
+pub mod dto;
+pub mod limiter;
 pub mod password;
 pub mod repo;
+pub mod routes;
+pub mod session;
 
 use sqlx::PgPool;
 use uuid::Uuid;

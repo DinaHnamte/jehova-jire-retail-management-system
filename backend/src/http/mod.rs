@@ -1,3 +1,5 @@
+pub mod auth;
+pub mod json;
 pub mod request_id;
 
 use std::time::Duration;
@@ -16,7 +18,13 @@ use tower_http::trace::TraceLayer;
 use crate::{AppState, MIGRATOR, error::AppError};
 
 pub fn build_app(state: AppState) -> Router {
-    let api = Router::new().fallback(|| async { AppError::NotFound });
+    let api = Router::new()
+        .merge(crate::admin::routes::router())
+        .fallback(|| async { AppError::NotFound })
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::session_layer,
+        ));
 
     Router::new()
         .route("/health/live", get(|| async { Json(json!({ "status": "ok" })) }))

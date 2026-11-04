@@ -98,3 +98,49 @@ impl TestApp {
             .await
     }
 }
+
+pub async fn seed_user(
+    pool: &PgPool,
+    username: &str,
+    password: &str,
+    roles: &[&str],
+) -> uuid::Uuid {
+    let hash = jj_retail_api::admin::password::hash_password(password).unwrap();
+    let mut c = pool.acquire().await.unwrap();
+    jj_retail_api::admin::repo::create_user(&mut c, username, username, &hash, roles)
+        .await
+        .unwrap()
+}
+
+pub struct Session {
+    pub cookie: String,
+    pub csrf: String,
+}
+
+impl TestApp {
+    pub async fn login_raw(&self, username: &str, password: &str) -> TestResponse {
+        self.post_json(
+            "/api/v1/auth/login",
+            serde_json::json!({ "username": username, "password": password }),
+            None,
+            None,
+        )
+        .await
+    }
+
+    /// Log in and return the cookie pair (`jj_session=...`) and CSRF token. Panics unless 200.
+    pub async fn login(&self, username: &str, password: &str) -> Session {
+        let r = self.login_raw(username, password).await;
+        assert_eq!(
+            r.status(),
+            200,
+            "login failed: {:?}",
+            String::from_utf8_lossy(&r.body)
+        );
+        let set = r.header("set-cookie").expect("set-cookie");
+        Session {
+            cookie: set.split(';').next().unwrap().to_string(),
+            csrf: r.json()["csrf_token"].as_str().unwrap().to_string(),
+        }
+    }
+}
