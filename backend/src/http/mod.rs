@@ -13,7 +13,8 @@ use axum::{
     routing::get,
 };
 use serde_json::json;
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{DefaultOnResponse, TraceLayer};
+use tracing::Level;
 
 use crate::{AppState, MIGRATOR, error::AppError};
 
@@ -38,7 +39,8 @@ pub fn build_app(state: AppState) -> Router {
                 .map(|r| r.0.to_string())
                 .unwrap_or_default();
             tracing::info_span!("request", method = %req.method(), path = %req.uri().path(), request_id = %id)
-        }))
+        })
+        .on_response(DefaultOnResponse::new().level(Level::INFO)))
         .layer(middleware::from_fn(request_id::middleware))
 }
 
