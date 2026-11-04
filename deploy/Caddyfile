@@ -1,0 +1,31 @@
+# /etc/caddy/Caddyfile — set JJ_DOMAIN in Caddy's environment (e.g. systemctl edit caddy).
+{$JJ_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; img-src 'self' blob: data:; worker-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle /health/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	handle {
+		root * /srv/jj-retail/web
+		@nocache path / /index.html /sw.js /registerSW.js /manifest.webmanifest
+		header @nocache Cache-Control "no-cache"
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}

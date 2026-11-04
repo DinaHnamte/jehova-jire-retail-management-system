@@ -25,3 +25,9 @@ cd frontend
 pnpm install
 pnpm dev                        # http://localhost:5173, proxies /api to the API
 ```
+
+## Deploy
+
+See [deploy/README.md](deploy/README.md): one-time server setup, then `deploy/deploy.sh user@host`.
+CI (`.github/workflows/ci.yml`) runs fmt, clippy, the SQLx offline-data check and tests for the API,
+plus typecheck, tests and build for the web app.

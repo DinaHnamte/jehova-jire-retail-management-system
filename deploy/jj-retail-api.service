@@ -1,0 +1,32 @@
+# /etc/systemd/system/jj-retail-api.service
+[Unit]
+Description=Jehovah Jireh retail API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jj-retail
+Group=jj-retail
+EnvironmentFile=/etc/jj-retail/env
+ExecStart=/opt/jj-retail/current/jj-retail-api serve
+Restart=on-failure
+RestartSec=3
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/var/lib/jj-retail
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

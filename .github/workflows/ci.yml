@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: jj_retail
+          POSTGRES_PASSWORD: jj_retail
+          POSTGRES_DB: jj_retail
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U jj_retail"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://jj_retail:jj_retail@localhost:5432/jj_retail
+      SQLX_OFFLINE: "true"
+      CARGO_TERM_COLOR: always
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --version 0.9.0 --locked --no-default-features --features rustls,postgres
+      - run: cargo fmt --check
+      - name: Migrate CI database
+        run: sqlx migrate run
+      - name: Offline query data is up to date
+        run: SQLX_OFFLINE=false cargo sqlx prepare --check -- --all-targets
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm exec vite build
+
+  deploy-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Caddyfile
+        run: docker run --rm -e JJ_DOMAIN=example.com -v "$PWD/deploy:/d:ro" caddy:2 caddy validate --config /d/Caddyfile --adapter caddyfile
+      - name: Lint deploy script
+        run: shellcheck deploy/deploy.sh
