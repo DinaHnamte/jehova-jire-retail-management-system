@@ -281,3 +281,41 @@ async fn overlong_password_is_rejected_before_hashing(pool: PgPool) {
     let r = app(pool).login_raw("x", &"a".repeat(2000)).await;
     assert_eq!(r.status(), 422);
 }
+
+#[sqlx::test]
+async fn parallel_wrong_passwords_cannot_bypass_rate_limit(pool: PgPool) {
+    seed_user(&pool, "cashier1", PW, &["cashier"]).await;
+    let a = std::sync::Arc::new(app(pool));
+    let mut set = tokio::task::JoinSet::new();
+    for _ in 0..20 {
+        let a = a.clone();
+        set.spawn(async move { a.login_raw("cashier1", "wrong password").await.status() });
+    }
+    let statuses: Vec<u16> = set.join_all().await;
+    let verified = statuses.iter().filter(|s| **s == 401).count();
+    assert!(
+        verified <= 5,
+        "{verified} attempts reached password verification: {statuses:?}"
+    );
+    assert_eq!(
+        statuses.iter().filter(|s| **s == 429).count(),
+        20 - verified
+    );
+}
+
+#[sqlx::test]
+async fn login_works_with_a_single_connection_pool(pool: PgPool) {
+    seed_user(&pool, "cashier1", PW, &["cashier"]).await;
+    let one = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(std::time::Duration::from_secs(2))
+        .connect_with((*pool.connect_options()).clone())
+        .await
+        .unwrap();
+    let a = app(one);
+    assert_eq!(
+        a.login_raw("cashier1", "wrong password").await.status(),
+        401
+    );
+    assert_eq!(a.login_raw("cashier1", PW).await.status(), 200);
+}

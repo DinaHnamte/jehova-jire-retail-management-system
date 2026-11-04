@@ -13,7 +13,10 @@ use axum::{
     routing::get,
 };
 use serde_json::json;
-use tower_http::trace::{DefaultOnResponse, TraceLayer};
+use tower_http::{
+    catch_panic::CatchPanicLayer,
+    trace::{DefaultOnResponse, TraceLayer},
+};
 use tracing::Level;
 
 use crate::{AppState, MIGRATOR, error::AppError};
@@ -31,7 +34,10 @@ pub fn build_app(state: AppState) -> Router {
         .route("/health/live", get(|| async { Json(json!({ "status": "ok" })) }))
         .route("/health/ready", get(ready))
         .nest("/api/v1", api)
+        .fallback(|| async { AppError::NotFound })
+        .method_not_allowed_fallback(|| async { AppError::MethodNotAllowed })
         .with_state(state)
+        .layer(CatchPanicLayer::custom(panic_response))
         .layer(TraceLayer::new_for_http().make_span_with(|req: &Request| {
             let id = req
                 .extensions()
@@ -42,6 +48,17 @@ pub fn build_app(state: AppState) -> Router {
         })
         .on_response(DefaultOnResponse::new().level(Level::INFO)))
         .layer(middleware::from_fn(request_id::middleware))
+}
+
+/// A handler panicked: log it and answer with the standard 500 body instead of dropping
+/// the connection.
+pub fn panic_response(panic: Box<dyn std::any::Any + Send>) -> axum::response::Response {
+    let msg = panic
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| panic.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "unknown panic".into());
+    AppError::Internal(anyhow::anyhow!("handler panicked: {msg}")).into_response()
 }
 
 async fn ready(State(state): State<AppState>) -> impl IntoResponse {
@@ -65,5 +82,14 @@ async fn ready(State(state): State<AppState>) -> impl IntoResponse {
             StatusCode::SERVICE_UNAVAILABLE,
             Json(json!({ "database": "error", "migrations": "unknown" })),
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn panic_renders_standard_internal_error() {
+        let res = super::panic_response(Box::new("boom"));
+        assert_eq!(res.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

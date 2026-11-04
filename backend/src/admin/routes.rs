@@ -46,12 +46,16 @@ async fn login(
         ));
     }
     let ip = meta.ip.as_deref();
-    if !state.login_limiter.check(&username, ip) {
+    if !state.login_limiter.try_acquire(&username, ip) {
         return Err(AppError::RateLimited);
     }
 
-    let mut conn = state.db.acquire().await?;
-    let user = repo::find_user_for_login(&mut conn, &username).await?;
+    // Release the connection before the (slow) password check, so concurrent logins
+    // can't hold the whole pool.
+    let user = {
+        let mut conn = state.db.acquire().await?;
+        repo::find_user_for_login(&mut conn, &username).await?
+    };
     let hash = user
         .as_ref()
         .map(|u| u.password_hash.clone())
@@ -64,7 +68,8 @@ async fn login(
     let user = match user {
         Some(u) if verified && u.is_active => u,
         _ => {
-            state.login_limiter.record_failure(&username, ip);
+            // The reserved attempt stays counted as a failure.
+            let mut conn = state.db.acquire().await?;
             audit::record(
                 &mut conn,
                 audit::Entry {
@@ -80,7 +85,7 @@ async fn login(
             return Err(AppError::InvalidCredentials);
         }
     };
-    state.login_limiter.reset(&username);
+    state.login_limiter.succeeded(&username, ip);
 
     let mut tx = state.db.begin().await?;
     let roles = repo::user_role_codes(&mut tx, user.id).await?;

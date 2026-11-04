@@ -18,8 +18,10 @@ sudo -u postgres psql -c "CREATE ROLE jj_retail LOGIN PASSWORD '<generate a stro
 sudo -u postgres psql -c "CREATE DATABASE jj_retail OWNER jj_retail;"
 sudo -u postgres psql -d jj_retail -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 
-# Configuration (copy deploy/env.production.example and fill in DATABASE_URL)
-sudo install -o jj-retail -g jj-retail -m 0600 env.production.example /etc/jj-retail/env
+# Configuration (copy deploy/env.production.example and fill in DATABASE_URL).
+# Root-owned: systemd reads it for the service, so the service user can't rewrite it.
+# Percent-encode special characters in the DATABASE_URL password.
+sudo install -o root -g root -m 0600 env.production.example /etc/jj-retail/env
 sudoedit /etc/jj-retail/env
 
 # Service and web server
@@ -37,7 +39,9 @@ Then from your machine: `deploy/deploy.sh deploy@shop.example.com`, and create t
 administrator on the server:
 
 ```sh
-sudo -u jj-retail bash -c 'set -a; . /etc/jj-retail/env; /opt/jj-retail/current/jj-retail-api create-admin --username admin --display-name "Owner"'
+sudo systemd-run --pty --wait --collect --uid=jj-retail --gid=jj-retail \
+  -p EnvironmentFile=/etc/jj-retail/env \
+  /opt/jj-retail/current/jj-retail-api create-admin --username admin --display-name "Owner"
 ```
 
 Backups and monitoring: Operations.md §2–3 (set up before go-live).

@@ -43,7 +43,9 @@ PREV_API="\$(readlink /opt/jj-retail/current || true)"
 PREV_WEB="\$(readlink /srv/jj-retail/web || true)"
 
 echo "-- migrations (must be backward compatible with the running release)"
-sudo -u jj-retail bash -c 'set -a; . /etc/jj-retail/env; exec /opt/jj-retail/releases/'"\$REL"'/jj-retail-api migrate'
+# systemd-run reads /etc/jj-retail/env exactly as the service does (EnvironmentFile).
+sudo systemd-run --quiet --wait --pipe --collect --uid=jj-retail --gid=jj-retail \
+  -p EnvironmentFile=/etc/jj-retail/env /opt/jj-retail/releases/\$REL/jj-retail-api migrate
 
 sudo ln -sfn /opt/jj-retail/releases/\$REL /opt/jj-retail/current
 sudo ln -sfn /srv/jj-retail/web-releases/\$REL /srv/jj-retail/web

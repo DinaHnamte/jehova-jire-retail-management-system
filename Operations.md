@@ -33,7 +33,7 @@ first, remove later). The previous release is kept on the server for a
 one-command rollback.
 
 Secrets (`DATABASE_URL`, `SESSION_SECRET`) live in
-`/etc/jj-retail/env` (mode 0600), never in the repository. A
+`/etc/jj-retail/env` (root-owned, mode 0600, read by systemd), never in the repository. A
 `.env.example` with placeholder values is committed.
 
 ```dotenv

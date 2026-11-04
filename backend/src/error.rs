@@ -26,6 +26,8 @@ pub enum AppError {
     Validation(String),
     #[error("Not found.")]
     NotFound,
+    #[error("That method isn't allowed here.")]
+    MethodNotAllowed,
     #[error("{0}")]
     Conflict(String),
     #[error("Something went wrong on the server.")]
@@ -41,6 +43,7 @@ impl AppError {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::NotFound => StatusCode::NOT_FOUND,
+            Self::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -56,6 +59,7 @@ impl AppError {
             Self::BadRequest(_) => "BAD_REQUEST",
             Self::Validation(_) => "VALIDATION_FAILED",
             Self::NotFound => "NOT_FOUND",
+            Self::MethodNotAllowed => "METHOD_NOT_ALLOWED",
             Self::Conflict(_) => "CONFLICT",
             Self::Internal(_) => "INTERNAL",
         }

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useSessionStore } from '@/modules/auth/session.store'
 import { authGuard } from './guards'
+import { clearReloadFlag, isChunkLoadError, reloadOnce } from './chunk-reload'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -33,6 +34,11 @@ router.beforeEach(async (to) => {
   return authGuard(to, { isLoggedIn: session.isLoggedIn, can: (p) => session.can(p) })
 })
 
+router.onError((err, to) => {
+  if (isChunkLoadError(err)) reloadOnce(to.fullPath)
+})
+
 router.afterEach((to) => {
+  clearReloadFlag()
   document.title = to.meta.title ? `${String(to.meta.title)} · Jehovah Jireh` : 'Jehovah Jireh'
 })
