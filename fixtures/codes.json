@@ -1,0 +1,79 @@
+[
+  {
+    "raw": "B 6275-4.75",
+    "normalized": "B6275-4.75",
+    "base": "B6275",
+    "variant": "4.75",
+    "digits": "6275-4.75"
+  },
+  {
+    "raw": "IP 1060-11\"",
+    "normalized": "IP1060-11",
+    "base": "IP1060",
+    "variant": "11",
+    "digits": "1060-11"
+  },
+  {
+    "raw": "IB 1290 -7.8\"",
+    "normalized": "IB1290-7.8",
+    "base": "IB1290",
+    "variant": "7.8",
+    "digits": "1290-7.8"
+  },
+  {
+    "raw": "B 6143-8",
+    "normalized": "B6143-8",
+    "base": "B6143",
+    "variant": "8",
+    "digits": "6143-8"
+  },
+  {
+    "raw": "b6143–8",
+    "normalized": "B6143-8",
+    "base": "B6143",
+    "variant": "8",
+    "digits": "6143-8"
+  },
+  {
+    "raw": "Ｂ６１４３－８",
+    "normalized": "B6143-8",
+    "base": "B6143",
+    "variant": "8",
+    "digits": "6143-8"
+  },
+  {
+    "raw": "IP 1060-11″",
+    "normalized": "IP1060-11",
+    "base": "IP1060",
+    "variant": "11",
+    "digits": "1060-11"
+  },
+  {
+    "raw": "B6275",
+    "normalized": "B6275",
+    "base": "B6275",
+    "variant": null,
+    "digits": "6275"
+  },
+  {
+    "raw": "B6275-",
+    "normalized": "B6275",
+    "base": "B6275",
+    "variant": null,
+    "digits": "6275"
+  },
+  {
+    "raw": "   ",
+    "normalized": null,
+    "base": null,
+    "variant": null,
+    "digits": null
+  },
+  {
+    "raw": "Plate",
+    "normalized": null,
+    "base": null,
+    "variant": null,
+    "digits": null
+  }
+]
