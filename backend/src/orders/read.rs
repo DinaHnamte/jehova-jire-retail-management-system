@@ -39,6 +39,7 @@ pub struct LineOut {
     pub unit_price: String,
     pub line_discount: String,
     pub order_discount_share: String,
+    /// After this line's share of the order discount.
     pub net_amount: String,
     /// Only for users who can update products.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -99,8 +100,7 @@ pub struct ReceiptLine {
     pub unit_price: Decimal,
     #[serde(serialize_with = "money_str")]
     pub list_price: Decimal,
-    /// The line's amount after its own discount, before the order discount (so the lines add up
-    /// to `subtotal`).
+    /// Before the order discount; rows sum to `subtotal`.
     #[serde(serialize_with = "money_str")]
     pub net_amount: Decimal,
 }

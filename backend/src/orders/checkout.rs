@@ -481,8 +481,8 @@ pub async fn checkout_route(
     user.require("orders.confirm")?;
     let key = idempotency::key_from_headers(&headers)?;
     let (created, v) = checkout(&s.db, user.id, &key, body).await?;
-    // The stored (idempotent) answer only names the order; the reply is always built fresh so
-    // it reflects who is asking (cost) and the current state.
+    // The stored response is used only for its order id; the detail is rebuilt so cost
+    // visibility follows the caller.
     let id = v["id"]
         .as_str()
         .and_then(|s| Uuid::parse_str(s).ok())

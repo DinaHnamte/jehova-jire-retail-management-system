@@ -309,6 +309,32 @@ async fn retry_with_same_key_makes_one_sale(pool: PgPool) {
 }
 
 #[sqlx::test]
+async fn replay_rebuilds_detail_for_the_caller(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let cost = |v: &Value| {
+        v["lines"][0]
+            .get("unit_cost")
+            .cloned()
+            .unwrap_or(Value::Null)
+    };
+    let k = key();
+    let first = checkout(&sh.a, &sh.s, Some(&k), cash_sale(&sh.p[0], 2, "200")).await;
+    let again = checkout(&sh.a, &sh.s, Some(&k), cash_sale(&sh.p[0], 2, "200")).await;
+    assert_eq!(again.status(), 200);
+    assert_eq!(again.json()["id"], first.json()["id"]);
+    assert!(
+        cost(&again.json()).is_null(),
+        "cashier must not see cost on replay"
+    );
+    let m = sh.a.login("boss", PW).await;
+    let k2 = key();
+    checkout(&sh.a, &m, Some(&k2), cash_sale(&sh.p[1], 1, "100")).await;
+    let again = checkout(&sh.a, &m, Some(&k2), cash_sale(&sh.p[1], 1, "100")).await;
+    assert_eq!(again.status(), 200);
+    assert_eq!(cost(&again.json()), "60.0000");
+}
+
+#[sqlx::test]
 async fn same_key_different_body_conflicts(pool: PgPool) {
     let sh = shop(&pool).await;
     let k = key();

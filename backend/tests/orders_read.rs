@@ -301,3 +301,53 @@ async fn checkout_response_is_order_detail(pool: PgPool) {
     assert_eq!(o["status"], "confirmed");
     assert!(o["number"].as_str().unwrap().starts_with("JJ/"));
 }
+
+#[sqlx::test]
+async fn receipt_adds_order_discount_back_to_lines(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let boss_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE username = 'boss'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let p3 = seed_product(&pool, boss_id, "Cup").await.to_string();
+    opening(&sh.a, &sh.boss, &[(&p3, 10)]).await;
+    let o = checkout(
+        &sh,
+        json!({"lines": [{"product_id": sh.p[0], "quantity": 1},
+                         {"product_id": sh.p[1], "quantity": 2},
+                         {"product_id": p3, "quantity": 3}],
+               "order_discount": "50",
+               "new_customer": {"phone": "9862012345"},
+               "payments": [{"method": "cash", "amount": "100"}]}),
+    )
+    .await
+    .json();
+    let token: String = sqlx::query_scalar("SELECT receipt_token FROM orders")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let d =
+        sh.a.get(&format!("/api/v1/public/receipts/{token}"))
+            .await
+            .json();
+    let dec = |v: &Value| rust_decimal::Decimal::from_str_exact(v.as_str().unwrap()).unwrap();
+    let sum: rust_decimal::Decimal = d["lines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| dec(&l["net_amount"]))
+        .sum();
+    assert_eq!(sum, dec(&d["subtotal"]));
+    assert_eq!(
+        dec(&d["total"]),
+        dec(&d["subtotal"]) - dec(&d["order_discount"])
+    );
+    assert_eq!(d["order_discount"], "50.00");
+    assert_eq!(d["total"], "550.00");
+    // The WhatsApp text carries the same figures.
+    let wa = o["whatsapp_url"].as_str().unwrap();
+    assert!(
+        wa.contains("Discount%20%E2%80%94%20%E2%88%92%E2%82%B950%0A"),
+        "{wa}"
+    );
+}

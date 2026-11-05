@@ -29,11 +29,18 @@ impl Config {
             trust_proxy: parse_bool("TRUST_PROXY", false)?,
             log_format: var_or("LOG_FORMAT", "json"),
             run_migrations: parse_bool("RUN_MIGRATIONS", false)?,
-            public_url: var_or("PUBLIC_URL", "http://localhost:8000")
-                .trim_end_matches('/')
-                .to_string(),
+            public_url: normalize_public_url(std::env::var("PUBLIC_URL").ok()),
         })
     }
+}
+
+pub const DEFAULT_PUBLIC_URL: &str = "https://jehovah-jire.hnamtek.in";
+
+/// Unset or blank means the production default; a trailing slash is dropped.
+fn normalize_public_url(raw: Option<String>) -> String {
+    let v = raw.unwrap_or_default();
+    let v = v.trim().trim_end_matches('/');
+    if v.is_empty() { DEFAULT_PUBLIC_URL } else { v }.to_string()
 }
 
 fn var_or(key: &str, default: &str) -> String {
@@ -48,5 +55,20 @@ fn parse_bool(key: &str, default: bool) -> Result<bool> {
             "0" | "false" | "no" => Ok(false),
             _ => anyhow::bail!("{key} must be true or false"),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn public_url_defaults_and_trims() {
+        assert_eq!(normalize_public_url(None), DEFAULT_PUBLIC_URL);
+        assert_eq!(normalize_public_url(Some("  ".into())), DEFAULT_PUBLIC_URL);
+        assert_eq!(
+            normalize_public_url(Some("https://x.test/".into())),
+            "https://x.test"
+        );
     }
 }
