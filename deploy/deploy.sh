@@ -18,7 +18,8 @@ HOST="${1:?usage: deploy.sh user@host}"
 BUILD_ON="${BUILD_ON:-remote}"
 PLATFORM="${PLATFORM:-linux/amd64}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-REL="$(date -u +%Y%m%d%H%M%S)-$(git -C "$ROOT" rev-parse --short HEAD)"
+COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
+REL="$(date -u +%Y%m%d%H%M%S)-$(git -C "$ROOT" rev-parse --short "$COMMIT")"
 BUILD_IMAGE="rust:1-trixie"
 
 if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
@@ -26,29 +27,38 @@ if [ -n "$(git -C "$ROOT" status --porcelain)" ]; then
   exit 1
 fi
 
-ssh "$HOST" "mkdir -p /tmp/jj-$REL/web ~/jj-build/backend"
+# Build from a snapshot of the commit, never the working folder: switching branches
+# while a deploy runs must not mix two versions into one release.
+SNAP="$(mktemp -d)"
+trap 'rm -rf "$SNAP"' EXIT
+git -C "$ROOT" archive --format=tar "$COMMIT" backend frontend fixtures | tar -x -C "$SNAP"
+
+ssh "$HOST" "mkdir -p /tmp/jj-$REL/web"
 
 echo "==> Building API ($BUILD_ON)"
 if [ "$BUILD_ON" = remote ]; then
-  rsync -az --delete --exclude target/ --exclude .env "$ROOT/backend/" "$HOST:jj-build/backend/"
+  tar -C "$SNAP" -cf - backend | ssh "$HOST" "rm -rf ~/jj-build && mkdir -p ~/jj-build && tar -x -C ~/jj-build"
+  # Cargo decides what to rebuild from file times, and the snapshot's times can be older
+  # than the cached build: touch the crate's roots so our own code is always recompiled
+  # (dependencies stay cached).
   ssh "$HOST" "sudo docker run --rm \
     -v \$HOME/jj-build/backend:/src -v jj-cargo-registry:/usr/local/cargo/registry -v jj-cargo-target:/target \
     -v /tmp/jj-$REL:/out -w /src -e SQLX_OFFLINE=true -e CARGO_TARGET_DIR=/target \
-    $BUILD_IMAGE sh -c 'cargo build --release --locked && cp /target/release/jj-retail-api /out/'"
+    $BUILD_IMAGE sh -c 'touch src/lib.rs src/main.rs build.rs && cargo build --release --locked && cp /target/release/jj-retail-api /out/'"
 else
   ARCH="${PLATFORM#linux/}"
   docker run --rm --platform "$PLATFORM" \
-    -v "$ROOT/backend":/src -w /src \
-    -e SQLX_OFFLINE=true -e CARGO_TARGET_DIR="/src/target/linux-$ARCH" \
-    "$BUILD_IMAGE" cargo build --release --locked
+    -v "$SNAP/backend":/src -v "$ROOT/backend/target":/target -w /src \
+    -e SQLX_OFFLINE=true -e CARGO_TARGET_DIR="/target/linux-$ARCH" \
+    "$BUILD_IMAGE" sh -c 'touch src/lib.rs src/main.rs build.rs && cargo build --release --locked'
   rsync -az "$ROOT/backend/target/linux-$ARCH/release/jj-retail-api" "$HOST:/tmp/jj-$REL/"
 fi
 
 echo "==> Building web app"
-(cd "$ROOT/frontend" && pnpm install --frozen-lockfile && pnpm build)
+(cd "$SNAP/frontend" && pnpm install --frozen-lockfile --prefer-offline && pnpm build)
 
 echo "==> Uploading release $REL"
-rsync -az --delete "$ROOT/frontend/dist/" "$HOST:/tmp/jj-$REL/web/"
+rsync -az --delete "$SNAP/frontend/dist/" "$HOST:/tmp/jj-$REL/web/"
 
 echo "==> Activating on server"
 # shellcheck disable=SC2087 # $REL is meant to expand locally
