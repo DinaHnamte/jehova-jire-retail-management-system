@@ -1,6 +1,6 @@
 // Receipt and count arithmetic. Money is a two-decimal string; maths runs in whole paise
 // (BigInt) so no float rounding can creep in.
-import { parseMoneyInput } from '@/shared/money'
+import { fromPaise, parseMoneyInput, toPaise } from '@/shared/money'
 
 const MAX_QTY = 1_000_000
 
@@ -10,16 +10,6 @@ export function parseQuantity(s: string, min = 1): number | null {
   if (!/^\d+$/.test(t)) return null
   const n = Number(t)
   return n >= min && n <= MAX_QTY ? n : null
-}
-
-function toPaise(amount: string): bigint {
-  const [int = '0', frac = '00'] = amount.split('.')
-  return BigInt(int) * 100n + BigInt(frac.padEnd(2, '0').slice(0, 2))
-}
-
-function fromPaise(p: bigint): string {
-  const s = p.toString().padStart(3, '0')
-  return `${s.slice(0, -2)}.${s.slice(-2)}`
 }
 
 /** quantity × cost as `"1205.00"`, or null when either is invalid. */

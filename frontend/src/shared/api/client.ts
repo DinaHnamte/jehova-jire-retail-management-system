@@ -19,11 +19,14 @@ interface RequestOptions {
   signal?: AbortSignal
   /** Send `body` as-is with this content type instead of as JSON. */
   rawContentType?: string
+  /** Extra request headers, e.g. `Idempotency-Key`. */
+  headers?: Record<string, string>
 }
 
 async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
-  const { signal, rawContentType } = opts
+  const { signal, rawContentType, headers: extra } = opts
   const headers = new Headers({ accept: 'application/json' })
+  for (const [k, v] of Object.entries(extra ?? {})) headers.set(k, v)
   if (body !== undefined) headers.set('content-type', rawContentType ?? 'application/json')
   if (!SAFE_METHODS.has(method)) {
     const token = config.getCsrfToken()
@@ -62,8 +65,8 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
 }
 
 export const api = {
-  get: <T>(path: string, opts?: { signal?: AbortSignal }) => request<T>('GET', path, undefined, opts),
-  post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
+  get: <T>(path: string, opts?: RequestOptions) => request<T>('GET', path, undefined, opts),
+  post: <T>(path: string, body?: unknown, opts?: RequestOptions) => request<T>('POST', path, body, opts),
   /** POST a non-JSON body (e.g. a CSV file) with its own content type. */
   postRaw: <T>(path: string, body: string, contentType: string) =>
     request<T>('POST', path, body, { rawContentType: contentType }),

@@ -25,3 +25,15 @@ export function parseMoneyInput(s: string): string | null {
   if (int.length > MAX_INT_DIGITS) return null
   return `${int}.${((m[2] ?? '') + '00').slice(0, 2)}`
 }
+
+/** `"12.5"` → `1250n`. Expects a non-negative amount with at most two decimals. */
+export function toPaise(amount: string): bigint {
+  const [int = '0', frac = '00'] = amount.split('.')
+  return BigInt(int) * 100n + BigInt(frac.padEnd(2, '0').slice(0, 2))
+}
+
+/** `1250n` → `"12.50"`. Negative values are not supported; callers clamp at zero. */
+export function fromPaise(p: bigint): string {
+  const s = p.toString().padStart(3, '0')
+  return `${s.slice(0, -2)}.${s.slice(-2)}`
+}
