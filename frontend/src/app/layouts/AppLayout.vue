@@ -1,17 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '@/modules/auth/session.store'
-import { visibleNav } from '@/app/nav'
+import { splitForTabBar, visibleNav } from '@/app/nav'
 import NavIcon from './NavIcon.vue'
 import Avatar from '@/shared/ui/Avatar.vue'
 import ThemeToggle from '@/shared/ui/ThemeToggle.vue'
 
 const session = useSessionStore()
 const router = useRouter()
+const route = useRoute()
 const nav = computed(() => visibleNav((p) => session.can(p)))
 // A bottom bar with a single tab is noise; phones only show it from two items up.
 const showTabBar = computed(() => nav.value.length > 1)
+const split = computed(() => splitForTabBar(nav.value, 4))
+const moreOpen = ref(false)
+const moreActive = computed(() => split.value.more.some((i) => route.path === i.to || route.path.startsWith(i.to + '/')))
+watch(() => route.path, () => (moreOpen.value = false))
 const name = computed(() => session.user?.display_name ?? '')
 
 async function signOut() {
@@ -74,16 +79,45 @@ async function signOut() {
       aria-label="Main"
       class="fixed inset-x-0 bottom-0 z-10 bg-nav px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] md:hidden"
     >
+      <div
+        v-if="moreOpen && split.more.length"
+        id="more-menu"
+        class="absolute inset-x-2 bottom-full mb-2 rounded-card border border-nav-hover bg-nav p-1 shadow-card"
+      >
+        <RouterLink
+          v-for="item in split.more"
+          :key="item.to"
+          :to="item.to"
+          class="flex min-h-12 items-center gap-3 rounded-control px-3 font-semibold text-nav-ink hover:bg-nav-hover"
+          active-class="!text-primary"
+        >
+          <NavIcon :name="item.icon" class="size-6" />
+          {{ item.label }}
+        </RouterLink>
+      </div>
       <ul class="flex gap-1">
-        <li v-for="item in nav" :key="item.to" class="flex-1">
+        <li v-for="item in split.tabs" :key="item.to" class="min-w-0 flex-1">
           <RouterLink
             :to="item.to"
-            class="flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-control text-xs font-semibold text-nav-muted"
+            class="flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-control text-sm font-semibold text-nav-muted"
             exact-active-class="!bg-nav-hover !text-primary"
           >
             <NavIcon :name="item.icon" class="size-6" />
             {{ item.label }}
           </RouterLink>
+        </li>
+        <li v-if="split.more.length" class="min-w-0 flex-1">
+          <button
+            type="button"
+            class="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-control text-sm font-semibold"
+            :class="moreOpen || moreActive ? 'bg-nav-hover text-primary' : 'text-nav-muted'"
+            aria-controls="more-menu"
+            :aria-expanded="moreOpen"
+            @click="moreOpen = !moreOpen"
+          >
+            <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h.01M12 12h.01M19 12h.01" /></svg>
+            More
+          </button>
         </li>
       </ul>
     </nav>

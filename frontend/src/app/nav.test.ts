@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { visibleNav } from './nav'
+import { splitForTabBar, visibleNav } from './nav'
 
 describe('visibleNav', () => {
   it('cashier does not see Users', () => {
@@ -24,12 +24,23 @@ describe('visibleNav', () => {
     expect(visibleNav((p) => p === 'products.read').map((i) => i.label)).not.toContain('Stock')
   })
 
-  it('shows POS, Sales and Customers right after Overview for sellers', () => {
+  it('shows Sell, Sales and Customers right after Overview for sellers', () => {
     const labels = visibleNav((p) => p === 'orders.confirm' || p === 'orders.read').map((i) => i.label)
-    expect(labels).toEqual(['Overview', 'POS', 'Sales', 'Customers'])
+    expect(labels).toEqual(['Overview', 'Sell', 'Sales', 'Customers'])
     const stockOnly = visibleNav((p) => p === 'inventory.read').map((i) => i.label)
-    expect(stockOnly).not.toContain('POS')
+    expect(stockOnly).not.toContain('Sell')
     expect(stockOnly).not.toContain('Sales')
     expect(stockOnly).not.toContain('Customers')
+  })
+})
+
+describe('splitForTabBar', () => {
+  it('keeps up to five items as tabs', () => {
+    expect(splitForTabBar([1, 2, 3, 4, 5])).toEqual({ tabs: [1, 2, 3, 4, 5], more: [] })
+    expect(splitForTabBar([1])).toEqual({ tabs: [1], more: [] })
+  })
+  it('puts everything after the first four behind More when there are six or more', () => {
+    expect(splitForTabBar([1, 2, 3, 4, 5, 6, 7])).toEqual({ tabs: [1, 2, 3, 4], more: [5, 6, 7] })
+    expect(splitForTabBar([1, 2, 3, 4, 5, 6])).toEqual({ tabs: [1, 2, 3, 4], more: [5, 6] })
   })
 })

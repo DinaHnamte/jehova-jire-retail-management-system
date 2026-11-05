@@ -21,6 +21,7 @@ const error = ref<string | null>(null)
 const busy = ref(false)
 
 function open() {
+  if (dialog.value?.open) return
   cash.value = store.totals.total
   upi.value = ''
   error.value = null

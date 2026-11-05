@@ -19,12 +19,17 @@ const input = ref<HTMLInputElement | null>(null)
 const sheet = ref<InstanceType<typeof ChargeSheet> | null>(null)
 let timer: ReturnType<typeof setTimeout> | undefined
 let ctrl: AbortController | null = null
+let inflight: Promise<void> | null = null
 
 const done = ref<OrderDetail | null>(null)
 /** Server complaints about a particular line, keyed by product id. */
 const lineErrors = ref<Record<string, string>>({})
 
 function onInput() {
+  // Hits belong to the text they were searched for; drop them (and any in-flight search) on change.
+  ctrl?.abort()
+  results.value = []
+  searched.value = false
   clearTimeout(timer)
   timer = setTimeout(search, 120)
 }
@@ -38,14 +43,21 @@ async function search() {
     searched.value = false
     return
   }
-  ctrl = new AbortController()
-  try {
-    const r = await searchProducts(text, ctrl.signal)
-    results.value = r.results.filter((h) => !h.archived).slice(0, 8)
-    searched.value = true
-  } catch {
-    // Typing again retries; an aborted or failed lookup isn't worth an error here.
-  }
+  const mine = new AbortController()
+  ctrl = mine
+  const run = (async () => {
+    try {
+      const r = await searchProducts(text, mine.signal)
+      if (mine.signal.aborted) return
+      results.value = r.results.filter((h) => !h.archived).slice(0, 8)
+      searched.value = true
+    } catch {
+      // Typing again retries; an aborted or failed lookup isn't worth an error here.
+    }
+  })()
+  inflight = run
+  await run
+  if (inflight === run) inflight = null
 }
 
 const inCart = (id: string) => store.lines.find((l) => l.productId === id)?.quantity ?? 0
@@ -58,7 +70,7 @@ async function onEnter() {
   if (timer !== undefined) {
     clearTimeout(timer)
     await search()
-  }
+  } else if (inflight) await inflight
   const top = results.value[0]
   if (!top) return
   add(top)
@@ -116,8 +128,13 @@ function onLineError(productId: string, message: string) {
 // Any change to the cart makes an old server complaint stale.
 watch(() => [store.lines, store.orderDiscount], () => (lineErrors.value = {}), { deep: true })
 
-function newSale() {
+/** The cart (and its idempotency key) is cleared the moment the sale succeeds, so a reload can't charge it twice. */
+function onDone(order: OrderDetail) {
   store.clear()
+  done.value = order
+}
+
+function newSale() {
   done.value = null
   q.value = ''
   results.value = []
@@ -142,8 +159,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKey)
   clearTimeout(timer)
   ctrl?.abort()
-  // The charge key belongs to the finished sale; leaving the done screen starts the next sale fresh.
-  if (done.value) store.clear()
 })
 </script>
 
@@ -253,6 +268,6 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <ChargeSheet ref="sheet" @done="(o) => (done = o)" @line-error="onLineError" />
+    <ChargeSheet ref="sheet" @done="onDone" @line-error="onLineError" />
   </template>
 </template>
