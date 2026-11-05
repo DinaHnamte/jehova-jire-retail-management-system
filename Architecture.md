@@ -857,7 +857,7 @@ Each phase is a working vertical slice with exit criteria.
 | Receipt printer: model, 58 or 80 mm, USB or Bluetooth | Phase 5 |
 | Number of cashiers; is shift/till open-close needed? | Phase 5 |
 | Delivery zones and fees; default driver pay per delivery | Phase 6 |
-| Roughly how many products (SKUs) at launch? | Phase 2 |
+| ~~Roughly how many products (SKUs) at launch?~~ About 500; lists are paged (answered 5 Nov 2026) | Phase 2 |
 
 ## Appendix A — Naming
 
