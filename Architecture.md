@@ -348,6 +348,13 @@ first result, time per scan, memory use, and accuracy on the corpus.
 Compare the PaddleOCR.js package, PP-OCR via ONNX Runtime Web, and
 Tesseract.js, then pick one. Record the choice as an ADR.
 
+**Status (6 Nov 2026): parked, partly done.** The test bench is live at
+`/lab/ocr`. On a laptop, PaddleOCR read 5/5 sample labels (model, design
+and MRP) and Tesseract read 3/5. On the shop's phones it "kind of
+works". Still open: proper measurements on the phones, PaddleOCR's need
+for `unsafe-eval` (the `/lab` CSP exception), and the engine ADR. Phase
+4 goes ahead first; product codes are typed in until then.
+
 ## 8. Inventory
 
 ### 8.1 Ledger
