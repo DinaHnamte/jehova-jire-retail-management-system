@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO document_sequences (doc_type, fiscal_year, next_value) VALUES ($1, $2, 2)\n           ON CONFLICT (doc_type, fiscal_year)\n           DO UPDATE SET next_value = document_sequences.next_value + 1\n           RETURNING next_value - 1 AS \"seq!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "seq!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e29e45a9ea93979dcd4037053c3de1c10570a872c8f938120a5536cb0ad8b0a7"
+}

@@ -29,6 +29,7 @@ pub fn build_app(state: AppState) -> Router {
         .merge(crate::catalog::routes::router())
         .merge(crate::inventory::router())
         .merge(crate::customers::router())
+        .merge(crate::orders::router())
         .fallback(|| async { AppError::NotFound })
         .layer(middleware::from_fn_with_state(
             state.clone(),

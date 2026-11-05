@@ -137,6 +137,31 @@ impl AppError {
         }
     }
 
+    /// 422: payments add up to more than the bill; `details.max` is the most that can be paid.
+    pub fn overpayment(max: rust_decimal::Decimal) -> Self {
+        let mut max = max;
+        max.rescale(2);
+        Self::Coded {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "OVERPAYMENT",
+            message: format!(
+                "Paid is more than the total. Enter {} or less.",
+                crate::shared::money::format_rupees(max)
+            ),
+            details: json!({ "max": max.to_string() }),
+        }
+    }
+
+    /// 422: money is left owing but no customer was picked.
+    pub fn customer_required() -> Self {
+        Self::Coded {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "CUSTOMER_REQUIRED",
+            message: "Pick a customer to leave money owing.".into(),
+            details: json!({}),
+        }
+    }
+
     /// 409: the same Idempotency-Key was reused with a different request body.
     pub fn idempotency_conflict() -> Self {
         Self::Coded {

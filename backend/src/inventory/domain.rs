@@ -9,6 +9,7 @@ pub enum MovementType {
     AdjustmentIn,
     AdjustmentOut,
     Damage,
+    Sale,
 }
 
 impl MovementType {
@@ -19,6 +20,7 @@ impl MovementType {
             Self::AdjustmentIn => "adjustment_in",
             Self::AdjustmentOut => "adjustment_out",
             Self::Damage => "damage",
+            Self::Sale => "sale",
         }
     }
 
@@ -40,6 +42,7 @@ impl FromStr for MovementType {
             "adjustment_in" => Self::AdjustmentIn,
             "adjustment_out" => Self::AdjustmentOut,
             "damage" => Self::Damage,
+            "sale" => Self::Sale,
             _ => return Err(()),
         })
     }
@@ -50,6 +53,7 @@ pub enum SourceType {
     GoodsReceipt,
     StockCount,
     Adjustment,
+    Order,
 }
 
 impl SourceType {
@@ -58,6 +62,7 @@ impl SourceType {
             Self::GoodsReceipt => "goods_receipt",
             Self::StockCount => "stock_count",
             Self::Adjustment => "adjustment",
+            Self::Order => "order",
         }
     }
 }
@@ -125,13 +130,16 @@ mod tests {
             MovementType::AdjustmentIn,
             MovementType::AdjustmentOut,
             MovementType::Damage,
+            MovementType::Sale,
         ] {
             assert_eq!(MovementType::from_str(t.as_str()), Ok(t));
         }
         assert_eq!(MovementType::OpeningBalance.as_str(), "opening_balance");
         assert!(MovementType::PurchaseReceipt.is_inbound());
         assert!(!MovementType::Damage.is_inbound());
-        assert!(MovementType::from_str("sale").is_err());
+        assert!(!MovementType::Sale.is_inbound());
+        assert!(MovementType::from_str("refund").is_err());
         assert_eq!(SourceType::GoodsReceipt.as_str(), "goods_receipt");
+        assert_eq!(SourceType::Order.as_str(), "order");
     }
 }
