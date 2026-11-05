@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ref_id AS \"ref_id!\", COALESCE(SUM(amount), 0) AS \"owed!\"\n           FROM ledger_entries\n           WHERE account = 'receivable' AND ref_id = ANY($1)\n           GROUP BY ref_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ref_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "ledger_entries",
+            "name": "ref_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "owed!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      true,
+      null
+    ]
+  },
+  "hash": "e929fd2f18bf2bf170541384a01e95ee7e4bdca2e635b7b5f0f3347b6715b758"
+}

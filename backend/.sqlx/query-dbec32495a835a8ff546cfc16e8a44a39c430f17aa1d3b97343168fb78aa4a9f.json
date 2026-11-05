@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(SUM(e.amount), 0) AS \"owes!\"\n           FROM orders o\n           JOIN ledger_entries e ON e.account = 'receivable' AND e.ref_id = o.id\n           WHERE o.customer_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "owes!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "dbec32495a835a8ff546cfc16e8a44a39c430f17aa1d3b97343168fb78aa4a9f"
+}

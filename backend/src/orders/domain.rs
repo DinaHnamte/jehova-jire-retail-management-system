@@ -79,7 +79,9 @@ pub fn price_lines(
     let subtotal: i128 = base_p.iter().sum();
     let disc = to_paise(order_discount);
     if disc > subtotal {
-        return Err(PriceError::OrderDiscountTooBig { max: from_paise(subtotal) });
+        return Err(PriceError::OrderDiscountTooBig {
+            max: from_paise(subtotal),
+        });
     }
 
     let mut shares = vec![0i128; lines.len()];
@@ -140,7 +142,12 @@ mod tests {
     }
 
     fn line(q: i64, price: Decimal, disc: Decimal) -> LineIn {
-        LineIn { quantity: q, list_price: price, unit_price: price, line_discount: disc }
+        LineIn {
+            quantity: q,
+            list_price: price,
+            unit_price: price,
+            line_discount: disc,
+        }
     }
 
     #[test]
@@ -158,7 +165,11 @@ mod tests {
 
     #[test]
     fn price_lines_spreads_order_discount_exactly() {
-        let lines = [line(1, dec!(100), dec!(0)), line(1, dec!(200), dec!(0)), line(1, dec!(300), dec!(0))];
+        let lines = [
+            line(1, dec!(100), dec!(0)),
+            line(1, dec!(200), dec!(0)),
+            line(1, dec!(300), dec!(0)),
+        ];
         let (p, sub, total) = price_lines(&lines, dec!(100)).unwrap();
         let shares: Vec<_> = p.iter().map(|l| l.order_discount_share).collect();
         assert_eq!(shares, [dec!(16.67), dec!(33.33), dec!(50.00)]);
@@ -166,13 +177,20 @@ mod tests {
         assert_eq!(sub, dec!(600));
         assert_eq!(total, dec!(500.00));
         for l in &p {
-            assert_eq!(l.net_amount, l.gross - l.line_discount - l.order_discount_share);
+            assert_eq!(
+                l.net_amount,
+                l.gross - l.line_discount - l.order_discount_share
+            );
         }
     }
 
     #[test]
     fn price_lines_remainder_goes_to_largest_fraction() {
-        let lines = [line(1, dec!(100), dec!(0)), line(1, dec!(100), dec!(0)), line(1, dec!(100), dec!(0))];
+        let lines = [
+            line(1, dec!(100), dec!(0)),
+            line(1, dec!(100), dec!(0)),
+            line(1, dec!(100), dec!(0)),
+        ];
         let (p, _, _) = price_lines(&lines, dec!(10)).unwrap();
         let shares: Vec<_> = p.iter().map(|l| l.order_discount_share).collect();
         assert_eq!(shares, [dec!(3.34), dec!(3.33), dec!(3.33)]);
@@ -197,7 +215,11 @@ mod tests {
             price_lines(&[line(1, dec!(100), dec!(101))], dec!(0)).unwrap_err(),
             PriceError::LineDiscountTooBig(0)
         );
-        let lines = [line(1, dec!(100), dec!(0)), line(1, dec!(200), dec!(0)), line(1, dec!(300), dec!(0))];
+        let lines = [
+            line(1, dec!(100), dec!(0)),
+            line(1, dec!(200), dec!(0)),
+            line(1, dec!(300), dec!(0)),
+        ];
         assert_eq!(
             price_lines(&lines, dec!(601)).unwrap_err(),
             PriceError::OrderDiscountTooBig { max: dec!(600) }
@@ -217,7 +239,10 @@ mod tests {
     fn allocate_fills_oldest_first() {
         let (a, b) = (Uuid::now_v7(), Uuid::now_v7());
         let owed = [(a, dec!(300)), (b, dec!(300))];
-        assert_eq!(allocate(dec!(450), &owed), vec![(a, dec!(300)), (b, dec!(150))]);
+        assert_eq!(
+            allocate(dec!(450), &owed),
+            vec![(a, dec!(300)), (b, dec!(150))]
+        );
         assert_eq!(allocate(dec!(300), &owed), vec![(a, dec!(300))]);
     }
 }
