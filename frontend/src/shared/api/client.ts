@@ -15,9 +15,16 @@ export function configureApi(c: ApiConfig) {
   config = c
 }
 
-async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+interface RequestOptions {
+  signal?: AbortSignal
+  /** Send `body` as-is with this content type instead of as JSON. */
+  rawContentType?: string
+}
+
+async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+  const { signal, rawContentType } = opts
   const headers = new Headers({ accept: 'application/json' })
-  if (body !== undefined) headers.set('content-type', 'application/json')
+  if (body !== undefined) headers.set('content-type', rawContentType ?? 'application/json')
   if (!SAFE_METHODS.has(method)) {
     const token = config.getCsrfToken()
     if (token) headers.set('x-csrf-token', token)
@@ -29,7 +36,7 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
       method,
       headers,
       credentials: 'same-origin',
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : rawContentType ? (body as BodyInit) : JSON.stringify(body),
       signal,
     })
   } catch (e) {
@@ -55,8 +62,11 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
 }
 
 export const api = {
-  get: <T>(path: string, opts?: { signal?: AbortSignal }) => request<T>('GET', path, undefined, opts?.signal),
+  get: <T>(path: string, opts?: { signal?: AbortSignal }) => request<T>('GET', path, undefined, opts),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
+  /** POST a non-JSON body (e.g. a CSV file) with its own content type. */
+  postRaw: <T>(path: string, body: string, contentType: string) =>
+    request<T>('POST', path, body, { rawContentType: contentType }),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),
 }

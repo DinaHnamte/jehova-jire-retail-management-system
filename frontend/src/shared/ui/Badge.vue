@@ -24,7 +24,7 @@ const dots: Record<BadgeTone, string> = {
 </script>
 
 <template>
-  <span class="inline-flex items-center gap-1.5 rounded-control px-2.5 py-1 text-sm font-semibold" :class="tones[props.tone]">
+  <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-control px-2.5 py-1 text-sm font-semibold" :class="tones[props.tone]">
     <span v-if="dot" class="size-2 rounded-full" :class="dots[props.tone]" aria-hidden="true" />
     <slot />
   </span>

@@ -97,3 +97,7 @@ export const removeIdentifier = (id: string, iid: string) => api.delete<void>(`/
 
 export const listCategories = () => api.get<NamedRef[]>('/categories')
 export const createCategory = (name: string) => api.post<NamedRef>('/categories', { name })
+
+/** Check (`dryRun`) or run a CSV import. A blocked run rejects with the report in `ApiError.details`. */
+export const importProducts = (csv: string, dryRun: boolean) =>
+  api.postRaw<ImportReport>(`/products/import?dry_run=${dryRun}`, csv, 'text/csv')

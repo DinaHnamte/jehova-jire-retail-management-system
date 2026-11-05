@@ -114,4 +114,17 @@ describe('api client', () => {
     expect(err).toBeInstanceOf(DOMException)
     expect((err as unknown as DOMException).name).toBe('AbortError')
   })
+
+  it('postRaw sends the body with its content type and CSRF header', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { created: 1 }))
+    const out = await api.postRaw<{ created: number }>('/products/import?dry_run=true', 'code,name\n', 'text/csv')
+    expect(out).toEqual({ created: 1 })
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toBe('/api/v1/products/import?dry_run=true')
+    expect(init.method).toBe('POST')
+    expect(init.body).toBe('code,name\n')
+    const h = new Headers(init.headers)
+    expect(h.get('content-type')).toBe('text/csv')
+    expect(h.get('x-csrf-token')).toBe('tok123')
+  })
 })

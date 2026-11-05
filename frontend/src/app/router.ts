@@ -27,6 +27,11 @@ export const router = createRouter({
           meta: { perm: 'products.create', title: 'Add product' },
         },
         {
+          path: 'products/import',
+          component: () => import('@/modules/products/ImportPage.vue'),
+          meta: { perm: 'products.create', title: 'Import products' },
+        },
+        {
           path: 'products/:id',
           component: () => import('@/modules/products/ProductDetailPage.vue'),
           meta: { perm: 'products.read', title: 'Product' },
