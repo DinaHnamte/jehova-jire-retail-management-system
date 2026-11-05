@@ -12,6 +12,7 @@ import { formatCost, formatWhen, movementLabel, signed } from './format'
 const props = defineProps<{ productId: string; archived: boolean }>()
 const session = useSessionStore()
 const canAdjust = computed(() => session.can('inventory.adjust') && !props.archived)
+const seesCost = computed(() => session.can('products.update'))
 
 const stock = ref<ProductStock | null>(null)
 const history = ref<Page<Movement> | null>(null)
@@ -59,7 +60,7 @@ function onSaved() {
           <dt class="text-sm text-muted">On hand</dt>
           <dd class="figure mt-1 text-4xl">{{ stock.on_hand }}</dd>
         </div>
-        <div>
+        <div v-if="seesCost">
           <dt class="text-sm text-muted">Average cost</dt>
           <dd class="mt-1">
             <span v-if="stock.avg_cost" class="figure text-2xl">{{ formatCost(stock.avg_cost) }}</span>
@@ -67,7 +68,7 @@ function onSaved() {
             <span v-else class="text-muted">—</span>
           </dd>
         </div>
-        <div>
+        <div v-if="seesCost">
           <dt class="text-sm text-muted">Stock value</dt>
           <dd class="figure mt-1 text-2xl">{{ formatRupees(stock.stock_value) }}</dd>
         </div>

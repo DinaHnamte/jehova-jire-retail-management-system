@@ -478,7 +478,12 @@ async fn get_route(
     ApiPath(id): ApiPath<Uuid>,
 ) -> AppResult<Json<CountOut>> {
     user.require("inventory.read")?;
-    Ok(Json(load(&mut *s.db.acquire().await?, id).await?))
+    let mut count = load(&mut *s.db.acquire().await?, id).await?;
+    // Cost is internal: only people who can edit products see it.
+    if !user.can("products.update") {
+        count.lines.iter_mut().for_each(|l| l.unit_cost = None);
+    }
+    Ok(Json(count))
 }
 
 async fn update_route(

@@ -13,6 +13,8 @@ const router = useRouter()
 const session = useSessionStore()
 const canCheck = computed(() => session.can('inventory.adjust'))
 const canReceive = computed(() => session.can('purchases.read'))
+// Cost is internal: only people who can edit products see it (the API sends null otherwise).
+const seesCost = computed(() => session.can('products.update'))
 
 // List state lives in the URL so Back and shared links restore it.
 interface Params {
@@ -101,11 +103,11 @@ async function checkNow() {
   }
 }
 
-const filters: { value: StockFilter | null; label: string }[] = [
+const filters = computed<{ value: StockFilter | null; label: string }[]>(() => [
   { value: null, label: 'All' },
   { value: 'out', label: 'Out of stock' },
-  { value: 'unknown_cost', label: 'Cost unknown' },
-]
+  ...(seesCost.value ? [{ value: 'unknown_cost' as const, label: 'Cost unknown' }] : []),
+])
 const mismatches = computed(() => check.value?.mismatches.length ?? 0)
 const lastPage = computed(() => (page.value ? Math.max(1, Math.ceil(page.value.total / page.value.per_page)) : 1))
 const range = computed(() => {
@@ -192,7 +194,7 @@ const range = computed(() => {
       <thead class="hidden border-b border-line text-sm text-muted sm:table-header-group">
         <tr>
           <th scope="col" class="px-5 py-3 font-semibold">Product</th>
-          <th scope="col" class="px-5 py-3 text-right font-semibold">Average cost</th>
+          <th v-if="seesCost" scope="col" class="px-5 py-3 text-right font-semibold">Average cost</th>
           <th scope="col" class="px-5 py-3 text-right font-semibold">On hand</th>
         </tr>
       </thead>
@@ -211,7 +213,7 @@ const range = computed(() => {
               <Badge v-if="r.product.design_code" tone="clay">{{ r.product.design_code }}</Badge>
             </p>
           </td>
-          <td class="col-start-1 row-start-2 text-sm sm:px-5 sm:py-4 sm:text-right sm:text-base">
+          <td v-if="seesCost" class="col-start-1 row-start-2 text-sm sm:px-5 sm:py-4 sm:text-right sm:text-base">
             <Badge v-if="!r.avg_cost && r.on_hand > 0" tone="golden">Cost unknown</Badge>
             <span v-else class="text-muted">{{ formatCost(r.avg_cost) }}</span>
           </td>

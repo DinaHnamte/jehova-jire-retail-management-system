@@ -306,13 +306,36 @@ pub async fn adjust(
     Ok(after)
 }
 
+/// Cost is internal, as in the catalogue: only people who can edit products see it.
+fn sees_cost(user: &CurrentUser) -> bool {
+    user.can("products.update")
+}
+
+impl ProductStock {
+    fn redacted(self, sees_cost: bool) -> Self {
+        if sees_cost {
+            self
+        } else {
+            Self {
+                avg_cost: None,
+                stock_value: None,
+                ..self
+            }
+        }
+    }
+}
+
 async fn list_route(
     State(s): State<AppState>,
     user: CurrentUser,
     ApiQuery(p): ApiQuery<ListParams>,
 ) -> AppResult<Json<Page<StockRow>>> {
     user.require("inventory.read")?;
-    Ok(Json(list(&s.db, p).await?))
+    let mut page = list(&s.db, p).await?;
+    if !sees_cost(&user) {
+        page.items.iter_mut().for_each(|r| r.avg_cost = None);
+    }
+    Ok(Json(page))
 }
 
 async fn product_stock_route(
@@ -321,7 +344,11 @@ async fn product_stock_route(
     ApiPath(id): ApiPath<Uuid>,
 ) -> AppResult<Json<ProductStock>> {
     user.require("inventory.read")?;
-    Ok(Json(product_stock(&mut *s.db.acquire().await?, id).await?))
+    Ok(Json(
+        product_stock(&mut *s.db.acquire().await?, id)
+            .await?
+            .redacted(sees_cost(&user)),
+    ))
 }
 
 async fn movements_route(
@@ -331,7 +358,11 @@ async fn movements_route(
     ApiQuery(p): ApiQuery<PageParams>,
 ) -> AppResult<Json<Page<MovementOut>>> {
     user.require("inventory.read")?;
-    Ok(Json(movements(&s.db, id, p).await?))
+    let mut page = movements(&s.db, id, p).await?;
+    if !sees_cost(&user) {
+        page.items.iter_mut().for_each(|m| m.unit_cost = None);
+    }
+    Ok(Json(page))
 }
 
 async fn adjust_route(
@@ -343,7 +374,11 @@ async fn adjust_route(
     user.require("inventory.adjust")?;
     Ok((
         StatusCode::CREATED,
-        Json(adjust(&s.db, user.id, id, req).await?),
+        Json(
+            adjust(&s.db, user.id, id, req)
+                .await?
+                .redacted(sees_cost(&user)),
+        ),
     ))
 }
 

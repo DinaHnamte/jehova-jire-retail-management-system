@@ -318,3 +318,37 @@ async fn cashier_can_view_stock(pool: PgPool) {
         200
     );
 }
+
+/// Cost is internal, as in the catalogue: only people who can edit products see it.
+#[sqlx::test]
+async fn cashier_sees_stock_but_no_costs(pool: PgPool) {
+    let (a, s) = boss(&pool).await;
+    let p = a.product(&s, "B 6143-8", "Bowl").await;
+    opening(&a, &s, &[(&p, 5, Some("10"))]).await;
+    seed_user(&pool, "cash", PW, &["cashier"]).await;
+    let c = a.login("cash", PW).await;
+
+    let v = a.get_with("/api/v1/stock", Some(&c.cookie)).await.json();
+    assert_eq!(v["items"][0]["on_hand"], 5);
+    assert_eq!(v["items"][0]["avg_cost"], Value::Null);
+    let v = a
+        .get_with(&format!("/api/v1/products/{p}/stock"), Some(&c.cookie))
+        .await
+        .json();
+    assert_eq!(
+        v,
+        json!({"on_hand": 5, "avg_cost": null, "stock_value": null})
+    );
+    let v = a
+        .get_with(&format!("/api/v1/products/{p}/movements"), Some(&c.cookie))
+        .await
+        .json();
+    assert_eq!(v["items"][0]["unit_cost"], Value::Null);
+
+    // The manager still sees them.
+    let v = a
+        .get_with(&format!("/api/v1/products/{p}/stock"), Some(&s.cookie))
+        .await
+        .json();
+    assert_eq!(v["avg_cost"], "10.0000");
+}
