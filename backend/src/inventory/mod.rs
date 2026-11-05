@@ -3,6 +3,7 @@ pub mod counts;
 pub mod domain;
 pub mod ledger;
 pub mod receipts;
+pub mod stock;
 pub mod suppliers;
 
 use uuid::Uuid;
@@ -15,6 +16,7 @@ pub fn router() -> axum::Router<crate::AppState> {
         .merge(suppliers::router())
         .merge(receipts::router())
         .merge(counts::router())
+        .merge(stock::router())
 }
 
 /// India Standard Time is a fixed UTC+05:30 with no daylight saving.

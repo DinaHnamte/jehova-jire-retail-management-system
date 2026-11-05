@@ -93,7 +93,7 @@ fn stage_name(stage: Option<i32>) -> &'static str {
 }
 
 /// `(raw, normalised)` search text, or `None` when there's nothing to search for.
-fn query_text(q: Option<&str>) -> Option<(String, String)> {
+pub(crate) fn query_text(q: Option<&str>) -> Option<(String, String)> {
     let raw: String = q?.trim().chars().take(MAX_QUERY).collect();
     if raw.is_empty() {
         return None;

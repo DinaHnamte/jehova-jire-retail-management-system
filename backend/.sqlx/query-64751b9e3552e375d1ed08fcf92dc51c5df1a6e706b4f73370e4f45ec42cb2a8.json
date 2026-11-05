@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"n!\"\n           FROM products p\n           LEFT JOIN catalog_search_hits($1, $2) h ON h.product_id = p.id\n           LEFT JOIN stock_balances b ON b.product_id = p.id AND b.location_id = $5\n           WHERE p.archived_at IS NULL\n             AND (NOT $3 OR h.stage IS NOT NULL)\n             AND ($4 = 'all'\n                  OR ($4 = 'out' AND COALESCE(b.on_hand, 0) = 0)\n                  OR ($4 = 'unknown_cost' AND b.avg_cost IS NULL AND COALESCE(b.on_hand, 0) > 0))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "n!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "64751b9e3552e375d1ed08fcf92dc51c5df1a6e706b4f73370e4f45ec42cb2a8"
+}

@@ -1,0 +1,173 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id, p.name, pi.normalized_value AS \"code?\", pi.base_code AS \"base_code?\",\n                  pi.variant AS \"variant?\", pi.design_code AS \"design_code?\", p.selling_price, p.mrp,\n                  p.unit, p.category_id, c.name AS \"category_name?\",\n                  COALESCE(b.on_hand, 0) AS \"on_hand!\", b.avg_cost AS \"avg_cost?\"\n           FROM products p\n           LEFT JOIN catalog_search_hits($1, $2) h ON h.product_id = p.id\n           LEFT JOIN categories c ON c.id = p.category_id\n           LEFT JOIN product_identifiers pi ON pi.product_id = p.id AND pi.identifier_type = 'product_code'\n           LEFT JOIN stock_balances b ON b.product_id = p.id AND b.location_id = $5\n           WHERE p.archived_at IS NULL\n             AND (NOT $3 OR h.stage IS NOT NULL)\n             AND ($4 = 'all'\n                  OR ($4 = 'out' AND COALESCE(b.on_hand, 0) = 0)\n                  OR ($4 = 'unknown_cost' AND b.avg_cost IS NULL AND COALESCE(b.on_hand, 0) > 0))\n           ORDER BY h.stage NULLS LAST, pi.base_code NULLS LAST, pi.variant_num NULLS FIRST,\n                    pi.design_code NULLS FIRST, lower(p.name), p.id\n           LIMIT $6 OFFSET $7",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "normalized_value"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "base_code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "base_code"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "variant?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "variant"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "design_code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "design_code"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "selling_price",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "selling_price"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "mrp",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "mrp"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "unit",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "unit"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "category_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "category_id"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "category_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "categories",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "on_hand!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 12,
+        "name": "avg_cost?",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "stock_balances",
+            "name": "avg_cost"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      null,
+      true
+    ]
+  },
+  "hash": "e6cf5a9654918fe757e89d2a4ae21eca17a907a788bd81cfcb67cccf3c37ae98"
+}
