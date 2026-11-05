@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT product_id, on_hand, avg_cost FROM stock_balances\n         WHERE location_id = $2 AND product_id = ANY($1)\n         ORDER BY product_id FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "product_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "stock_balances",
+            "name": "product_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "on_hand",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "stock_balances",
+            "name": "on_hand"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "avg_cost",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "stock_balances",
+            "name": "avg_cost"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "c4748a6b9b30e51e9a868942440ed6805acf0ab4011a0c6f6359bc4554073435"
+}

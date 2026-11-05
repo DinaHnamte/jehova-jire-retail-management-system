@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE stock_balances SET on_hand = $3, avg_cost = $4, updated_at = now()\n             WHERE product_id = $1 AND location_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Numeric"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bd8a32892411ea22dc58bda40a537ce7a84ad5e9e96f16e2d4c1a659212fe3e6"
+}

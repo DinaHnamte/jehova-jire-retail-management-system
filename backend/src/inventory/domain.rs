@@ -89,9 +89,18 @@ mod tests {
         Decimal::from_str(s).unwrap()
     }
 
+    /// (on_hand, avg, qty_in, cost, expected)
+    type Case = (
+        i64,
+        Option<&'static str>,
+        i64,
+        Option<&'static str>,
+        Option<&'static str>,
+    );
+
     #[test]
     fn avg_cost_cases() {
-        let cases: [(i64, Option<&str>, i64, Option<&str>, Option<&str>); 8] = [
+        let cases: [Case; 8] = [
             (0, None, 10, Some("100"), Some("100")),
             (10, Some("100"), 10, Some("120"), Some("110.0000")),
             (3, Some("100"), 1, Some("101"), Some("100.2500")),

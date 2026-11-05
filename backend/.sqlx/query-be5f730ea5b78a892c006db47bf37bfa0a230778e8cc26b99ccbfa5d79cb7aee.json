@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO stock_balances (product_id, location_id)\n         SELECT p, $2 FROM unnest($1::uuid[]) AS p ORDER BY p\n         ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "be5f730ea5b78a892c006db47bf37bfa0a230778e8cc26b99ccbfa5d79cb7aee"
+}
