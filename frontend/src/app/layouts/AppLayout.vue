@@ -5,6 +5,7 @@ import { useSessionStore } from '@/modules/auth/session.store'
 import { visibleNav } from '@/app/nav'
 import NavIcon from './NavIcon.vue'
 import Avatar from '@/shared/ui/Avatar.vue'
+import ThemeToggle from '@/shared/ui/ThemeToggle.vue'
 
 const session = useSessionStore()
 const router = useRouter()
@@ -40,6 +41,7 @@ async function signOut() {
           </li>
         </ul>
       </nav>
+      <ThemeToggle show-label class="mb-3 w-full text-nav-muted hover:bg-nav-hover hover:text-nav-ink" />
       <div class="flex items-center gap-3 border-t border-nav-hover px-1 pt-4">
         <Avatar :name="name" class="size-10" />
         <div class="min-w-0">
@@ -54,7 +56,10 @@ async function signOut() {
       class="sticky top-0 z-10 flex items-center justify-between gap-3 bg-nav px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 text-nav-ink md:hidden"
     >
       <p class="display text-xl font-extrabold">Jehovah Jireh<span class="text-primary">.</span></p>
-      <button type="button" class="-mr-2 min-h-10 rounded-control px-3 font-semibold hover:bg-nav-hover" @click="signOut">Sign out</button>
+      <div class="-mr-2 flex items-center gap-1">
+        <ThemeToggle class="hover:bg-nav-hover" />
+        <button type="button" class="min-h-10 rounded-control px-3 font-semibold hover:bg-nav-hover" @click="signOut">Sign out</button>
+      </div>
     </header>
 
     <main class="flex-1 px-4 py-6 md:px-8 md:py-8" :class="showTabBar ? 'pb-28 md:pb-8' : ''">

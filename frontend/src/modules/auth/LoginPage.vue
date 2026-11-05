@@ -5,6 +5,7 @@ import { useSessionStore } from './session.store'
 import { friendlyMessage } from '@/shared/api/errors'
 import { safeNext } from '@/app/guards'
 import KitchenwareArt from '@/shared/ui/KitchenwareArt.vue'
+import ThemeToggle from '@/shared/ui/ThemeToggle.vue'
 
 const session = useSessionStore()
 const router = useRouter()
@@ -35,6 +36,7 @@ async function submit() {
   <div class="min-h-dvh lg:grid lg:grid-cols-[1.1fr_1fr]">
     <!-- Picture side -->
     <section class="relative overflow-hidden bg-nav text-nav-ink px-6 pt-10 pb-6 lg:flex lg:flex-col lg:justify-between lg:rounded-none lg:p-14">
+      <ThemeToggle class="absolute top-3 right-3 text-nav-muted hover:bg-nav-hover hover:text-nav-ink lg:top-5 lg:right-5" />
       <div>
         <p class="display text-[2.6rem] leading-[0.95] font-extrabold lg:text-7xl">Jehovah Jireh</p>
         <p class="mt-3 max-w-xs text-lg text-nav-muted lg:mt-5 lg:text-xl">Shop counter, stock and delivery, in one place.</p>

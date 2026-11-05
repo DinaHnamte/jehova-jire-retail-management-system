@@ -51,42 +51,42 @@
   --chart-5: #b9a48a;
 
   --shadow: 0 1px 2px rgb(41 43 39 / 0.05);
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --canvas: #1f201d;
-    --surface: #292b27;
-    --ink: #f3ebe2;
-    --muted: #b1aba1;
-    --line: #3b3d38;
+/* Set by public/theme-init.js and the theme toggle (src/shared/theme.ts). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #1f201d;
+  --surface: #292b27;
+  --ink: #f3ebe2;
+  --muted: #b1aba1;
+  --line: #3b3d38;
 
-    --nav: #161714;
-    --nav-ink: #f3ebe2;
-    --nav-muted: #9a958c;
-    --nav-hover: #2b2d29;
+  --nav: #161714;
+  --nav-ink: #f3ebe2;
+  --nav-muted: #9a958c;
+  --nav-hover: #2b2d29;
 
-    --primary: #e57d5e;
-    --primary-strong: #ee947a;
-    --primary-ink: #f0a083;
-    --primary-tint: #43291f;
-    --on-primary: #1f140f;
+  --primary: #e57d5e;
+  --primary-strong: #ee947a;
+  --primary-ink: #f0a083;
+  --primary-tint: #43291f;
+  --on-primary: #1f140f;
 
-    --golden: #edc463;
-    --golden-ink: #f0cd7b;
-    --golden-tint: #3d3218;
-    --sage: #8fa88d;
-    --sage-ink: #a9c0a7;
-    --sage-tint: #262f25;
-    --clay: #c08d70;
-    --clay-ink: #d4a88e;
-    --clay-tint: #3a2a21;
-    --danger: #e08378;
-    --danger-tint: #3e2220;
+  --golden: #edc463;
+  --golden-ink: #f0cd7b;
+  --golden-tint: #3d3218;
+  --sage: #8fa88d;
+  --sage-ink: #a9c0a7;
+  --sage-tint: #262f25;
+  --clay: #c08d70;
+  --clay-ink: #d4a88e;
+  --clay-tint: #3a2a21;
+  --danger: #e08378;
+  --danger-tint: #3e2220;
 
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.3);
-  }
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3);
 }
 
 @theme inline {
