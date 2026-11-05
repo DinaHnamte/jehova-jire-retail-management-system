@@ -22,6 +22,26 @@ export const router = createRouter({
           meta: { perm: 'orders.confirm', title: 'Sell' },
         },
         {
+          path: 'sales',
+          component: () => import('@/modules/sales/SalesPage.vue'),
+          meta: { perm: 'orders.read', title: 'Sales' },
+        },
+        {
+          path: 'sales/:id',
+          component: () => import('@/modules/sales/SaleDetailPage.vue'),
+          meta: { perm: 'orders.read', title: 'Sale' },
+        },
+        {
+          path: 'customers',
+          component: () => import('@/modules/customers/CustomersPage.vue'),
+          meta: { perm: 'orders.read', title: 'Customers' },
+        },
+        {
+          path: 'customers/:id',
+          component: () => import('@/modules/customers/CustomerDetailPage.vue'),
+          meta: { perm: 'orders.read', title: 'Customer' },
+        },
+        {
           path: 'products',
           component: () => import('@/modules/products/ProductsPage.vue'),
           meta: { perm: 'products.read', title: 'Products' },

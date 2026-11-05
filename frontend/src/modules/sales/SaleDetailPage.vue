@@ -1,0 +1,93 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { useSessionStore } from '@/modules/auth/session.store'
+import { friendlyMessage } from '@/shared/api/errors'
+import { formatRupees, toPaise } from '@/shared/money'
+import { openWhatsApp } from '@/shared/whatsapp'
+import Badge from '@/shared/ui/Badge.vue'
+import PaymentDialog from '@/modules/customers/PaymentDialog.vue'
+import { getCustomer, getOrder, type OrderDetail } from '@/modules/pos/api'
+import { formatWhen } from '@/modules/stock/format'
+import { fmtPhone, statusLabel } from './format'
+
+const route = useRoute()
+const session = useSessionStore()
+const order = ref<OrderDetail | null>(null)
+const customerOwes = ref('0.00')
+const error = ref<string | null>(null)
+const dialog = ref<InstanceType<typeof PaymentDialog> | null>(null)
+
+async function load() {
+  error.value = null
+  try {
+    const o = await getOrder(String(route.params.id))
+    customerOwes.value = o.customer ? (await getCustomer(o.customer.id)).owes : '0.00'
+    order.value = o
+  } catch (e) {
+    error.value = friendlyMessage(e)
+  }
+}
+onMounted(load)
+
+const owed = computed(() => (order.value ? toPaise(order.value.owed) > 0n : false))
+// The payment goes against the customer's whole balance (oldest sale first), not just this sale.
+const canPay = computed(() => owed.value && !!order.value?.customer && order.value.status !== 'cancelled' && session.can('payments.record'))
+</script>
+
+<template>
+  <RouterLink to="/sales" class="text-muted hover:text-ink">← Sales</RouterLink>
+  <p v-if="error" role="alert" class="mt-4 rounded-control bg-danger-tint px-4 py-3 font-medium text-danger">{{ error }}</p>
+
+  <section v-else-if="order" class="card mx-auto mt-3 max-w-md p-5 sm:p-6" aria-labelledby="sale-h">
+    <div class="flex flex-wrap items-center gap-2">
+      <h1 id="sale-h" class="text-xl font-bold">{{ order.number }}</h1>
+      <Badge v-if="order.status === 'cancelled'" tone="neutral">Cancelled</Badge>
+      <Badge v-else :tone="order.payment_status === 'paid' ? 'sage' : 'golden'" dot>{{ statusLabel[order.payment_status] }}</Badge>
+    </div>
+    <p class="mt-1 text-sm text-muted">{{ formatWhen(order.created_at) }}</p>
+    <p v-if="order.customer" class="mt-1 text-sm">
+      <RouterLink :to="`/customers/${order.customer.id}`" class="link">{{ order.customer.name || fmtPhone(order.customer.phone) }}</RouterLink>
+      <span v-if="order.customer.name" class="text-muted"> · {{ fmtPhone(order.customer.phone) }}</span>
+    </p>
+
+    <ul class="mt-4 divide-y divide-line border-y border-line">
+      <li v-for="l in order.lines" :key="l.product_id" class="grid grid-cols-[1fr_auto] gap-x-3 py-2.5">
+        <div class="min-w-0">
+          <p class="font-semibold">{{ l.product_name }}</p>
+          <p class="text-sm text-muted">{{ l.quantity }} × {{ formatRupees(l.unit_price) }}</p>
+        </div>
+        <p class="figure self-center">{{ formatRupees(l.net_amount) }}</p>
+      </li>
+    </ul>
+
+    <dl class="mt-3 grid grid-cols-[1fr_auto] gap-y-1.5">
+      <template v-if="toPaise(order.order_discount) > 0n">
+        <dt class="text-muted">Subtotal</dt><dd class="figure">{{ formatRupees(order.subtotal) }}</dd>
+        <dt class="text-muted">Discount</dt><dd class="figure">−{{ formatRupees(order.order_discount) }}</dd>
+      </template>
+      <dt class="font-bold">Total</dt><dd class="figure text-xl">{{ formatRupees(order.total) }}</dd>
+      <dt class="text-muted">Paid</dt><dd class="figure">{{ formatRupees(order.paid) }}</dd>
+      <dt class="text-muted">Owed</dt><dd class="figure" :class="owed ? 'font-bold text-golden-ink' : ''">{{ formatRupees(order.owed) }}</dd>
+    </dl>
+
+    <p v-if="order.note" class="mt-3 text-sm text-muted">Note: {{ order.note }}</p>
+
+    <div v-if="order.payments.length" class="mt-4">
+      <h2 class="font-semibold">Payments</h2>
+      <ul class="mt-1 text-sm text-muted">
+        <li v-for="p in order.payments" :key="p.id" class="flex justify-between">
+          <span>{{ formatWhen(p.occurred_at) }} · {{ p.method.toUpperCase() }}</span>
+          <span class="figure">{{ formatRupees(p.amount) }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="mt-6 grid gap-3">
+      <button v-if="order.whatsapp_url" type="button" class="btn-primary" @click="openWhatsApp(order.whatsapp_url)">Send on WhatsApp</button>
+      <button v-if="canPay" type="button" :class="order.whatsapp_url ? 'btn-secondary' : 'btn-primary'" @click="dialog?.open()">Record payment</button>
+    </div>
+  </section>
+
+  <PaymentDialog v-if="order?.customer" ref="dialog" :customer-id="order.customer.id" :owes="customerOwes" @saved="load" />
+</template>

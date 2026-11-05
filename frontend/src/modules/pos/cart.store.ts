@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import type { SearchHit } from '@/modules/products/api'
 import type { CheckoutBody, CheckoutPayment, Customer } from './api'
 import { parseMoneyInput } from '@/shared/money'
+import { nextKey, type IssuedKey } from '@/shared/idempotency'
 import { cartProblems, cartTotals, type CartLine } from './cart'
 
 const STORAGE_KEY = 'jj.cart.v1'
@@ -11,18 +12,13 @@ interface NewCustomer {
   name: string
 }
 
-interface ChargeKey {
-  /** The exact serialized body this key was issued for. */
-  body: string
-  value: string
-}
 
 interface Persisted {
   lines: CartLine[]
   orderDiscount: string
   customer: Customer | null
   newCustomer: NewCustomer | null
-  key: ChargeKey | null
+  key: IssuedKey | null
 }
 
 const MAX_QTY = 1_000_000
@@ -183,12 +179,12 @@ export const useCartStore = defineStore('cart', {
      * never sees one key with two different bodies. `clear()` forgets it after a sale.
      */
     chargeKey(payments: CheckoutPayment[] = []): string {
-      const body = JSON.stringify(this.toBody(payments))
-      if (!this.key || this.key.body !== body) {
-        this.key = { body, value: crypto.randomUUID() }
+      const next = nextKey(this.key, this.toBody(payments))
+      if (next !== this.key) {
+        this.key = next
         this.persist()
       }
-      return this.key.value
+      return next.value
     },
   },
 })
