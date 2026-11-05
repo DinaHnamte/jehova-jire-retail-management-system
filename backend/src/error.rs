@@ -162,6 +162,16 @@ impl AppError {
         }
     }
 
+    /// 422: a later payment was entered for a customer who owes nothing.
+    pub fn nothing_owed() -> Self {
+        Self::Coded {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "OVERPAYMENT",
+            message: "Nothing is owed.".into(),
+            details: json!({ "max": "0.00" }),
+        }
+    }
+
     /// 422: money is left owing but no customer was picked.
     pub fn customer_required() -> Self {
         Self::Coded {

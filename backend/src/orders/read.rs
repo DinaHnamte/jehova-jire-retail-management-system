@@ -137,7 +137,7 @@ pub fn payment_status(total: Decimal, owed: Decimal) -> &'static str {
     }
 }
 
-async fn shop_name(conn: &mut PgConnection) -> AppResult<String> {
+pub(crate) async fn shop_name(conn: &mut PgConnection) -> AppResult<String> {
     let name: Option<String> =
         sqlx::query_scalar!(r#"SELECT value #>> '{}' FROM settings WHERE key = 'shop_name'"#)
             .fetch_optional(conn)

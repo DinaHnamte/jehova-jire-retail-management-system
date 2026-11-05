@@ -32,8 +32,10 @@ pub struct CustomerDetail {
     pub owes: String,
     /// Latest 50 orders, newest first.
     pub orders: Vec<OrderSummary>,
-    /// Latest 50 payments. Later payments (Task 8) fill this.
+    /// Latest 50 payments, newest first; each amount is the whole payment.
     pub payments: Vec<PaymentRow>,
+    /// WhatsApp reminder link, present when the customer owes money.
+    pub reminder_url: Option<String>,
 }
 
 #[derive(Deserialize)]

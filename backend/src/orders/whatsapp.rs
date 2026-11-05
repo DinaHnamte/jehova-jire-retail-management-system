@@ -56,6 +56,16 @@ pub fn receipt_text(r: &PublicReceipt, url: &str, payment_methods: &[&str]) -> S
     out
 }
 
+/// Reminder for a customer who still owes money, listing the receipts (oldest first).
+pub fn reminder_text(shop: &str, name: Option<&str>, owes: Decimal, numbers: &[String]) -> String {
+    format!(
+        "Hello {}, you have {} due with {shop} for receipts {}. Thank you!",
+        name.unwrap_or("there"),
+        money_short(owes),
+        numbers.join(", ")
+    )
+}
+
 /// `https://wa.me/91<phone>?text=<percent-encoded text>`.
 pub fn wa_link(phone10: &str, text: &str) -> String {
     let mut enc = String::with_capacity(text.len() * 2);
@@ -162,6 +172,19 @@ mod tests {
         assert!(t.contains("1 × Item 14 — ₹10\n"));
         assert!(!t.contains("Item 15"));
         assert!(t.contains("+2 more items — see link\n"));
+    }
+
+    #[test]
+    fn reminder_text_lists_receipts() {
+        let nums = vec!["JJ/1".to_string(), "JJ/2".to_string()];
+        assert_eq!(
+            reminder_text("Jehovah Jireh", Some("Mary"), d("450.50"), &nums),
+            "Hello Mary, you have ₹450.50 due with Jehovah Jireh for receipts JJ/1, JJ/2. Thank you!"
+        );
+        assert_eq!(
+            reminder_text("Shop", None, d("450"), &nums[..1]),
+            "Hello there, you have ₹450 due with Shop for receipts JJ/1. Thank you!"
+        );
     }
 
     #[test]

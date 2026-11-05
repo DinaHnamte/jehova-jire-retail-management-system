@@ -1,8 +1,14 @@
 //! Customers: keyed by phone, created at the till or by hand (spec §1).
 pub mod dto;
+pub mod payments;
 pub mod repo;
 
-use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
+use axum::{
+    Json, Router,
+    extract::State,
+    http::StatusCode,
+    routing::{get, post},
+};
 use uuid::Uuid;
 
 use crate::{
@@ -60,4 +66,5 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/customers", get(list_route).post(create_route))
         .route("/customers/{id}", get(get_route).patch(update_route))
+        .route("/customers/{id}/payments", post(payments::payment_route))
 }

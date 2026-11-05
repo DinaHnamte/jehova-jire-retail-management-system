@@ -185,12 +185,67 @@ pub async fn detail(db: &PgPool, id: Uuid) -> AppResult<CustomerDetail> {
     )
     .await?
     .items;
+    let payments = payment_rows(&mut conn, id).await?;
+    let reminder_url = reminder_url(&mut conn, &customer).await?;
     Ok(CustomerDetail {
         customer,
         owes,
         orders,
-        payments: Vec::new(),
+        payments,
+        reminder_url,
     })
+}
+
+/// Payment transactions on this customer's orders or recorded against them directly, newest
+/// first. The amount is the whole cash/UPI received, not a per-order share.
+async fn payment_rows(
+    conn: &mut PgConnection,
+    id: Uuid,
+) -> AppResult<Vec<orders::read::PaymentRow>> {
+    let rows = sqlx::query!(
+        r#"SELECT t.id, COALESCE(t.method, 'cash') AS "method!",
+                  SUM(e.amount) AS "amount!", t.occurred_at
+           FROM ledger_transactions t
+           JOIN ledger_entries e ON e.transaction_id = t.id AND e.account IN ('cash', 'upi')
+           WHERE t.kind = 'payment'
+             AND (t.customer_id = $1
+                  OR t.order_id IN (SELECT o.id FROM orders o WHERE o.customer_id = $1))
+           GROUP BY t.id, t.method, t.occurred_at
+           ORDER BY t.occurred_at DESC, t.id DESC
+           LIMIT 50"#,
+        id
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| orders::read::PaymentRow {
+            id: r.id,
+            method: r.method,
+            amount: money(r.amount),
+            occurred_at: r.occurred_at,
+        })
+        .collect())
+}
+
+async fn reminder_url(conn: &mut PgConnection, c: &Customer) -> AppResult<Option<String>> {
+    let owes = ledger::customer_owes(conn, c.id).await?;
+    if owes <= rust_decimal::Decimal::ZERO {
+        return Ok(None);
+    }
+    let open = ledger::customer_open_orders(conn, c.id).await?;
+    let ids: Vec<Uuid> = open.iter().map(|(id, _)| *id).collect();
+    let nums: std::collections::HashMap<Uuid, String> =
+        sqlx::query!("SELECT id, number FROM orders WHERE id = ANY($1)", &ids)
+            .fetch_all(&mut *conn)
+            .await?
+            .into_iter()
+            .map(|r| (r.id, r.number))
+            .collect();
+    let numbers: Vec<String> = ids.iter().filter_map(|i| nums.get(i).cloned()).collect();
+    let shop = orders::read::shop_name(conn).await?;
+    let text = orders::whatsapp::reminder_text(&shop, c.name.as_deref(), owes, &numbers);
+    Ok(Some(orders::whatsapp::wa_link(&c.phone, &text)))
 }
 
 pub async fn create(db: &PgPool, actor: Uuid, req: CreateCustomer) -> AppResult<Customer> {

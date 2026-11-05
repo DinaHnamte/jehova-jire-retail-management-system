@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT t.id, COALESCE(t.method, 'cash') AS \"method!\",\n                  SUM(e.amount) AS \"amount!\", t.occurred_at\n           FROM ledger_transactions t\n           JOIN ledger_entries e ON e.transaction_id = t.id AND e.account IN ('cash', 'upi')\n           WHERE t.kind = 'payment'\n             AND (t.customer_id = $1\n                  OR t.order_id IN (SELECT o.id FROM orders o WHERE o.customer_id = $1))\n           GROUP BY t.id, t.method, t.occurred_at\n           ORDER BY t.occurred_at DESC, t.id DESC\n           LIMIT 50",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "ledger_transactions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "method!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "amount!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "occurred_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "ledger_transactions",
+            "name": "occurred_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "67b83e89bced5ec3458e90e3a92a6472638497707aa8e0729646616eae693009"
+}
