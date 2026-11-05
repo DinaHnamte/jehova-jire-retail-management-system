@@ -18,8 +18,8 @@ export default defineConfig({
         description: 'Jehovah Jireh retail management',
         start_url: '/',
         display: 'standalone',
-        background_color: '#ffffff',
-        theme_color: '#1d4ed8',
+        background_color: '#f5f7f6',
+        theme_color: '#0f6e6a',
         icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
       },
       workbox: {

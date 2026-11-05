@@ -1,4 +1,5 @@
 <template>
-  <h1 class="text-xl font-semibold">Page not found</h1>
-  <RouterLink to="/" class="mt-4 inline-block text-brand-600 hover:underline dark:text-blue-400">Go to Overview</RouterLink>
+  <h1 class="text-2xl font-bold">There's no page here</h1>
+  <p class="mt-2 max-w-prose text-muted">The link may be old or mistyped.</p>
+  <RouterLink to="/" class="link mt-6 inline-block">Go to Overview</RouterLink>
 </template>

@@ -1,15 +1,117 @@
 @import "tailwindcss";
+@import "@fontsource-variable/atkinson-hyperlegible-next";
 
-@theme {
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
-  --color-brand-600: #1d4ed8;
-  --color-brand-700: #1e40af;
-}
-
+/*
+ * JJ Retail design tokens.
+ * Each colour has one meaning across the app so staff learn it once:
+ *   action = what you can press, owed = money still to collect / pending,
+ *   paid = settled / done, error = something went wrong.
+ */
 :root {
+  --paper: #f5f7f6;
+  --surface: #ffffff;
+  --ink: #1c2b2e;
+  --muted: #56676a;
+  --line: #d5dedc;
+  --action: #0f6e6a;
+  --action-strong: #0b5652;
+  --action-tint: #e1efec;
+  --on-action: #ffffff;
+  --brand: #0f6e6a;
+  --on-brand: #ffffff;
+  --owed: #8a5a00;
+  --owed-tint: #fbefd6;
+  --owed-mark: #d9961a;
+  --paid: #2f7a4c;
+  --paid-tint: #e2f1e7;
+  --error: #b8382b;
+  --error-tint: #f8e3e0;
   color-scheme: light dark;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #142124;
+    --surface: #1b2b2e;
+    --ink: #e8efee;
+    --muted: #9db0b1;
+    --line: #2e4245;
+    --action: #4fb3aa;
+    --action-strong: #73c7bf;
+    --action-tint: #1d3a3a;
+    --on-action: #0d2b29;
+    --brand: #0f3f3c;
+    --on-brand: #e8efee;
+    --owed: #f2b84b;
+    --owed-tint: #3a2e14;
+    --owed-mark: #f2b84b;
+    --paid: #7cc79a;
+    --paid-tint: #1c3526;
+    --error: #f08a7e;
+    --error-tint: #3d1f1b;
+  }
+}
+
+@theme inline {
+  --font-sans: "Atkinson Hyperlegible Next Variable", system-ui, sans-serif;
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-action: var(--action);
+  --color-action-strong: var(--action-strong);
+  --color-action-tint: var(--action-tint);
+  --color-on-action: var(--on-action);
+  --color-brand: var(--brand);
+  --color-on-brand: var(--on-brand);
+  --color-owed: var(--owed);
+  --color-owed-tint: var(--owed-tint);
+  --color-owed-mark: var(--owed-mark);
+  --color-paid: var(--paid);
+  --color-paid-tint: var(--paid-tint);
+  --color-error: var(--error);
+  --color-error-tint: var(--error-tint);
+}
+
 body {
-  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  @apply bg-paper font-sans text-ink antialiased;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+:focus-visible {
+  outline: 3px solid var(--action);
+  outline-offset: 2px;
+}
+
+@layer components {
+  /* The signature: amounts and key figures set like a receipt total. */
+  .figure {
+    font-weight: 750;
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .field {
+    @apply block w-full rounded-md border-2 border-line bg-surface px-3 py-3 text-lg text-ink;
+  }
+  .field:focus {
+    @apply border-action outline-none;
+  }
+
+  .btn-primary {
+    @apply inline-flex min-h-12 items-center justify-center rounded-md bg-action px-5 text-lg font-bold text-on-action;
+  }
+  .btn-primary:hover {
+    @apply bg-action-strong;
+  }
+  .btn-primary:disabled {
+    @apply cursor-wait opacity-60;
+  }
+
+  .link {
+    @apply font-semibold text-action underline decoration-2 underline-offset-4;
+  }
 }
