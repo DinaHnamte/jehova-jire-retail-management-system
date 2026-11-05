@@ -101,3 +101,69 @@ describe('cart store', () => {
     expect(fresh().lines).toHaveLength(1)
   })
 })
+
+describe('cart store: validation and keys', () => {
+  it('key changes when only the customer or new-customer name changes', () => {
+    const c = fresh()
+    c.add(hit('a'))
+    c.setNewCustomer({ phone: '9876543210', name: 'Asha' })
+    const k1 = c.chargeKey()
+    c.setNewCustomer({ phone: '9876543210', name: 'Asha B' })
+    const k2 = c.chargeKey()
+    expect(k2).not.toBe(k1)
+    c.setCustomer({ id: 'c1', phone: '1', name: null, note: null, created_at: '' })
+    const k3 = c.chargeKey()
+    expect(k3).not.toBe(k2)
+    c.setCustomer({ id: 'c2', phone: '2', name: null, note: null, created_at: '' })
+    expect(c.chargeKey()).not.toBe(k3)
+  })
+
+  it('toBody trims or omits the new-customer name', () => {
+    const c = fresh()
+    c.add(hit('a'))
+    c.setNewCustomer({ phone: '9876543210', name: '  Asha  ' })
+    expect(c.toBody().new_customer).toEqual({ phone: '9876543210', name: 'Asha' })
+    c.setNewCustomer({ phone: '9876543210', name: '   ' })
+    expect(c.toBody().new_customer).toEqual({ phone: '9876543210' })
+    expect(c.toBody().customer_id).toBeUndefined()
+  })
+
+  it('problems and valid report over-discounts', () => {
+    const c = fresh()
+    expect(c.valid).toBe(false) // empty
+    c.add(hit('a'))
+    expect(c.valid).toBe(true)
+    c.setLineDiscount('a', '500')
+    expect(c.valid).toBe(false)
+    expect(c.problems[0]!.message).toBe('Discount is more than this line. Enter ₹450.00 or less.')
+    c.setLineDiscount('a', '0')
+    c.setOrderDiscount('451')
+    expect(c.problems.map((p) => p.target)).toEqual(['order'])
+  })
+
+  it('setters ignore invalid input', () => {
+    const c = fresh()
+    c.add(hit('a'))
+    c.setQty('a', 0)
+    c.setQty('a', 1.5)
+    c.setQty('a', 1_000_001)
+    c.setPrice('a', 'abc')
+    c.setLineDiscount('a', '-5')
+    c.setOrderDiscount('1.234')
+    expect(c.lines[0]).toMatchObject({ quantity: 1, unitPrice: '450.00', lineDiscount: '0.00' })
+    expect(c.orderDiscount).toBe('0.00')
+    c.setPrice('a', '12.5')
+    expect(c.lines[0]!.unitPrice).toBe('12.50')
+    expect(() => c.totals).not.toThrow()
+  })
+
+  it('a stored cart with a malformed line is dropped', () => {
+    const good = { productId: 'a', code: null, name: 'x', listPrice: '1.00', unitPrice: '1.00', quantity: 1, lineDiscount: '0.00' }
+    localStorage.setItem('jj.cart.v1', JSON.stringify({ lines: [good, { ...good, unitPrice: 'abc' }] }))
+    expect(fresh().lines).toEqual([])
+    localStorage.setItem('jj.cart.v1', JSON.stringify({ lines: [good, { ...good, quantity: 0 }] }))
+    expect(fresh().lines).toEqual([])
+    localStorage.setItem('jj.cart.v1', JSON.stringify({ lines: [good] }))
+    expect(fresh().lines).toHaveLength(1)
+  })
+})

@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import type { SearchHit } from '@/modules/products/api'
 import type { CheckoutBody, CheckoutPayment, Customer } from './api'
-import { cartTotals, type CartLine } from './cart'
+import { parseMoneyInput } from '@/shared/money'
+import { cartProblems, cartTotals, type CartLine } from './cart'
 
 const STORAGE_KEY = 'jj.cart.v1'
 
@@ -24,12 +25,31 @@ interface Persisted {
   key: ChargeKey | null
 }
 
+const MAX_QTY = 1_000_000
+const MONEY = /^\d+\.\d{2}$/
+
+function validLine(l: unknown): l is CartLine {
+  if (!l || typeof l !== 'object') return false
+  const x = l as Record<string, unknown>
+  return (
+    typeof x.productId === 'string' &&
+    typeof x.name === 'string' &&
+    (x.code === null || typeof x.code === 'string') &&
+    typeof x.listPrice === 'string' && MONEY.test(x.listPrice) &&
+    typeof x.unitPrice === 'string' && MONEY.test(x.unitPrice) &&
+    typeof x.lineDiscount === 'string' && MONEY.test(x.lineDiscount) &&
+    Number.isInteger(x.quantity) && (x.quantity as number) >= 1 && (x.quantity as number) <= MAX_QTY
+  )
+}
+
+/** A stored cart with any malformed line is dropped whole, so `totals` can never throw. */
 function load(): Partial<Persisted> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return {}
     const d = JSON.parse(raw) as Partial<Persisted> | null
-    if (!d || typeof d !== 'object' || !Array.isArray(d.lines)) return {}
+    if (!d || typeof d !== 'object' || !Array.isArray(d.lines) || !d.lines.every(validLine)) return {}
+    if (d.orderDiscount !== undefined && !(typeof d.orderDiscount === 'string' && MONEY.test(d.orderDiscount))) return {}
     return d
   } catch {
     return {}
@@ -57,6 +77,11 @@ export const useCartStore = defineStore('cart', {
   },
   getters: {
     totals: (s) => cartTotals(s.lines, s.orderDiscount),
+    /** Discounts the server would reject; Charge stays disabled while this is non-empty. */
+    problems: (s) => cartProblems(s.lines, s.orderDiscount),
+    valid(): boolean {
+      return this.lines.length > 0 && this.problems.length === 0
+    },
     count: (s) => s.lines.reduce((n, l) => n + l.quantity, 0),
   },
   actions: {
@@ -85,23 +110,28 @@ export const useCartStore = defineStore('cart', {
         })
       this.persist()
     },
+    // Setters ignore invalid input (the value stays as it was) and store money normalised to two
+    // decimals; the screen keeps its own text while typing and commits when it parses.
     setQty(productId: string, quantity: number) {
       const l = this.lines.find((x) => x.productId === productId)
-      if (l) l.quantity = quantity
+      if (l && Number.isInteger(quantity) && quantity >= 1 && quantity <= MAX_QTY) l.quantity = quantity
       this.persist()
     },
     setPrice(productId: string, unitPrice: string) {
       const l = this.lines.find((x) => x.productId === productId)
-      if (l) l.unitPrice = unitPrice
+      const m = parseMoneyInput(unitPrice)
+      if (l && m !== null) l.unitPrice = m
       this.persist()
     },
     setLineDiscount(productId: string, discount: string) {
       const l = this.lines.find((x) => x.productId === productId)
-      if (l) l.lineDiscount = discount
+      const m = parseMoneyInput(discount)
+      if (l && m !== null) l.lineDiscount = m
       this.persist()
     },
     setOrderDiscount(discount: string) {
-      this.orderDiscount = discount
+      const m = parseMoneyInput(discount)
+      if (m !== null) this.orderDiscount = m
       this.persist()
     },
     /** An existing customer clears any new-customer draft, and the other way round. */
