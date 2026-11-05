@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE product_identifiers\n         SET raw_value = $3, normalized_value = $4, base_code = $5, variant = $6, variant_num = $7, digits = $8\n         WHERE product_id = $1 AND brand_id = $2 AND identifier_type = 'product_code'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Numeric",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e1165e35865b08b3f9f30d833bff8926577d4e49b7b65000a167e88cad1cdbda"
+}

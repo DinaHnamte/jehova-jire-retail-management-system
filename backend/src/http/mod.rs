@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod json;
+pub mod path;
 pub mod request_id;
 
 use std::time::Duration;

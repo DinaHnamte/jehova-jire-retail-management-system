@@ -30,6 +30,34 @@ pub fn parse_money(s: &str) -> Result<Decimal, String> {
     Ok(d)
 }
 
+/// `₹1,090.00`, with Indian digit grouping (`₹99,99,999.99`).
+pub fn format_rupees(d: Decimal) -> String {
+    let mut d = d;
+    d.rescale(2);
+    let s = d.abs().to_string();
+    let (int, frac) = s.split_once('.').unwrap_or((&s, "00"));
+    // Last three digits, then groups of two: 12,34,567.
+    let mut groups = Vec::new();
+    let (head, last3) = int.split_at(int.len().saturating_sub(3));
+    let mut head = head;
+    while head.len() > 2 {
+        let (h, g) = head.split_at(head.len() - 2);
+        groups.push(g);
+        head = h;
+    }
+    if !head.is_empty() {
+        groups.push(head);
+    }
+    groups.reverse();
+    groups.push(last3);
+    let sign = if d.is_sign_negative() && !d.is_zero() {
+        "-"
+    } else {
+        ""
+    };
+    format!("{sign}₹{}.{frac}", groups.join(","))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -54,5 +82,14 @@ mod tests {
         for bad in ["-1", "1.234", "10000000", "abc", "", "  ", "1e3"] {
             assert!(parse_money(bad).is_err(), "{bad:?} should be rejected");
         }
+    }
+
+    #[test]
+    fn format_rupees_uses_indian_grouping() {
+        assert_eq!(format_rupees(d("750")), "₹750.00");
+        assert_eq!(format_rupees(d("1090")), "₹1,090.00");
+        assert_eq!(format_rupees(d("0")), "₹0.00");
+        assert_eq!(format_rupees(d("123456.5")), "₹1,23,456.50");
+        assert_eq!(format_rupees(d("9999999.99")), "₹99,99,999.99");
     }
 }

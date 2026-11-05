@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE products SET archived_at = NULL, updated_at = now() WHERE id = $1 AND archived_at IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2a6319a2423a90bcbe39fceb24075f28d6fcd5f6e2d38509db0630caeb19087b"
+}

@@ -1,0 +1,268 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id, p.brand_id, b.name AS brand_name, p.category_id, c.name AS \"category_name?\",\n                      p.name, p.description, p.unit, p.pack_qty, p.attributes, p.selling_price, p.mrp,\n                      p.default_cost, p.hsn_code, p.archived_at, p.created_at, p.updated_at,\n                      pi.raw_value AS \"code_raw?\", pi.normalized_value AS \"code?\",\n                      pi.base_code AS \"base_code?\", pi.variant AS \"variant?\"\n               FROM products p\n               JOIN brands b ON b.id = p.brand_id\n               LEFT JOIN categories c ON c.id = p.category_id\n               LEFT JOIN product_identifiers pi ON pi.product_id = p.id AND pi.identifier_type = 'product_code'\n               WHERE p.id = $1\n               FOR UPDATE OF p",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "brand_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "brand_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "brand_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "brands",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "category_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "category_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "category_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "categories",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "unit",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "unit"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "pack_qty",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "pack_qty"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "attributes",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "attributes"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "selling_price",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "selling_price"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "mrp",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "mrp"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "default_cost",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "default_cost"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "hsn_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "hsn_code"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "archived_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "archived_at"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "updated_at"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "code_raw?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "raw_value"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "normalized_value"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "base_code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "base_code"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "variant?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "variant"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "81539d722871de001ba286159c857e15ad6cc2bab16c247949346ab9256e9168"
+}

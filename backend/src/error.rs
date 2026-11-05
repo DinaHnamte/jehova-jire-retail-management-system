@@ -24,6 +24,9 @@ pub enum AppError {
     BadRequest(String),
     #[error("{0}")]
     Validation(String),
+    /// A business rule failed on one input field; `details.field` names it for the form.
+    #[error("{message}")]
+    FieldInvalid { field: String, message: String },
     #[error("Not found.")]
     NotFound,
     #[error("That method isn't allowed here.")]
@@ -47,7 +50,7 @@ impl AppError {
             Self::Forbidden | Self::CsrfInvalid => StatusCode::FORBIDDEN,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
-            Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::Validation(_) | Self::FieldInvalid { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
             Self::Conflict(_) | Self::Duplicate { .. } => StatusCode::CONFLICT,
@@ -63,7 +66,7 @@ impl AppError {
             Self::InvalidCredentials => "INVALID_CREDENTIALS",
             Self::RateLimited => "RATE_LIMITED",
             Self::BadRequest(_) => "BAD_REQUEST",
-            Self::Validation(_) => "VALIDATION_FAILED",
+            Self::Validation(_) | Self::FieldInvalid { .. } => "VALIDATION_FAILED",
             Self::NotFound => "NOT_FOUND",
             Self::MethodNotAllowed => "METHOD_NOT_ALLOWED",
             Self::Conflict(_) => "CONFLICT",
@@ -80,6 +83,7 @@ impl IntoResponse for AppError {
         }
         let details = match &self {
             Self::Duplicate { details, .. } => details.clone(),
+            Self::FieldInvalid { field, .. } => json!({ "field": field }),
             _ => json!({}),
         };
         let body = json!({

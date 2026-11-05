@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT identifier_type, raw_value FROM product_identifiers WHERE id = $1 AND product_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "identifier_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "identifier_type"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "raw_value",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "raw_value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "da1dad77256a90bfd6ab3c7caa268ab53495f2ccf23e335da53784eb17e39457"
+}
