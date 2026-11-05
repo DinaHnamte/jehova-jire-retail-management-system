@@ -20,9 +20,19 @@
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "same-origin"
 		Permissions-Policy "camera=(self), microphone=(), geolocation=()"
-		Content-Security-Policy "default-src 'self'; img-src 'self' blob: data:; worker-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 		-Server
 	}
+
+	# 'wasm-unsafe-eval' lets the label scanner run its OCR engine (WebAssembly) without
+	# allowing JavaScript eval. Keep in step with CSP in frontend/vite.config.ts.
+	@app not path /lab/*
+	header @app Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' blob: data:; worker-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+	# OCR test bench only (admin, opened directly at /lab/ocr): the PaddleOCR candidate's
+	# OpenCV build needs 'unsafe-eval'. Remove this block once the engine is chosen.
+	@lab path /lab/*
+	header @lab Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; img-src 'self' blob: data:; worker-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
 
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8000 {

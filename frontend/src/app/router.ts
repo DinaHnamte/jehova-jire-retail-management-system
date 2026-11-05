@@ -42,6 +42,11 @@ export const router = createRouter({
           meta: { perm: 'products.update', title: 'Edit product' },
         },
         {
+          path: 'lab/ocr',
+          component: () => import('@/modules/lab/OcrLabPage.vue'),
+          meta: { perm: 'users.manage', title: 'OCR test' },
+        },
+        {
           path: 'admin/users',
           component: () => import('@/modules/admin/UsersPage.vue'),
           meta: { perm: 'users.manage', title: 'Users' },
