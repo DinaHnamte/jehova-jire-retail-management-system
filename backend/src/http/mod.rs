@@ -27,6 +27,7 @@ pub fn build_app(state: AppState) -> Router {
     let api = Router::new()
         .merge(crate::admin::routes::router())
         .merge(crate::catalog::routes::router())
+        .merge(crate::inventory::router())
         .fallback(|| async { AppError::NotFound })
         .layer(middleware::from_fn_with_state(
             state.clone(),

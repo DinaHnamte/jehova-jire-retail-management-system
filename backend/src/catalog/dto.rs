@@ -17,7 +17,7 @@ use serde::Deserializer;
 use serde_json::Value;
 
 /// Distinguishes "field absent" (`None`) from "field set to null" (`Some(None)`).
-fn double<'de, D, T>(d: D) -> Result<Option<Option<T>>, D::Error>
+pub(crate) fn double<'de, D, T>(d: D) -> Result<Option<Option<T>>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
