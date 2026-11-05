@@ -8,7 +8,10 @@ importers:
 
   .:
     dependencies:
-      '@fontsource-variable/atkinson-hyperlegible-next':
+      '@fontsource-variable/bricolage-grotesque':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource-variable/figtree':
         specifier: ^5.3.0
         version: 5.3.0
       pinia:
@@ -638,8 +641,11 @@ packages:
       '@noble/hashes':
         optional: true
 
-  '@fontsource-variable/atkinson-hyperlegible-next@5.3.0':
-    resolution: {integrity: sha512-UnLzNUy1RWoLDfydAatP4NaRm99X/WbQEph7q/PymJnCFIOOwKOx3pBmp5ys8trO0dM+CKGuJgeZP9fAR4mQpA==}
+  '@fontsource-variable/bricolage-grotesque@5.3.0':
+    resolution: {integrity: sha512-TLi9Q4hJjS2UvoTMRSS2nHu6c4R56lAw60NR9QYtVRCHn0XtsFpiEhNffZ8Glsoxu6wEEwLKBP8lb94J52PNBA==}
+
+  '@fontsource-variable/figtree@5.3.0':
+    resolution: {integrity: sha512-VRVodD7OiG7apQwE8/2fMjaqpY/a0qRJqL5HtYj8CKIVps+9amaFcdfKmDIf7iqYQx6iPLlArVXAfKeIZmVcNQ==}
 
   '@isaacs/cliui@9.0.0':
     resolution: {integrity: sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg==}
@@ -3304,7 +3310,9 @@ snapshots:
 
   '@exodus/bytes@1.16.0': {}
 
-  '@fontsource-variable/atkinson-hyperlegible-next@5.3.0': {}
+  '@fontsource-variable/bricolage-grotesque@5.3.0': {}
+
+  '@fontsource-variable/figtree@5.3.0': {}
 
   '@isaacs/cliui@9.0.0': {}
 
