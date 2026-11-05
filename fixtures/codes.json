@@ -75,5 +75,19 @@
     "base": null,
     "variant": null,
     "digits": null
+  },
+  {
+    "raw": "IP-1060-11\"",
+    "normalized": "IP1060-11",
+    "base": "IP1060",
+    "variant": "11",
+    "digits": "1060-11"
+  },
+  {
+    "raw": "ip - 1060 - 11",
+    "normalized": "IP1060-11",
+    "base": "IP1060",
+    "variant": "11",
+    "digits": "1060-11"
   }
 ]

@@ -69,6 +69,8 @@ export interface ImportRow {
   code: string | null
   name: string
   status: 'create' | 'skip' | 'error'
+  /** Why a row is skipped. */
+  note: string | null
   errors: { field: string; message: string }[]
 }
 

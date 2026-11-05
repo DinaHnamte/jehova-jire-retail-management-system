@@ -195,3 +195,47 @@ async fn cashier_cannot_import(pool: PgPool) {
     let (a, s) = setup(pool, "cashier").await;
     assert_eq!(import(&a, &s, THREE, true).await.status(), 403);
 }
+
+#[sqlx::test]
+async fn row_numbers_match_spreadsheet_lines(pool: PgPool) {
+    let (a, s) = setup(pool, "stock_operator").await;
+    // line 3 is blank; line 4's description spans two lines; the bad row is on line 6.
+    let csv = "code,name,selling_price,description\n\
+B 1-1,One,1,\n\
+\n\
+B 2-1,Two,1,\"first line\nsecond line\"\n\
+B 3-1,Three,1,\n\
+B 4-1,Four,abc,\n";
+    let rep = import(&a, &s, csv, true).await.json();
+    let rows: Vec<i64> = rep["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["row"].as_i64().unwrap())
+        .collect();
+    assert_eq!(rows, [2, 4, 6, 7]);
+    assert_eq!(rep["rows"][3]["status"], "error");
+}
+
+#[sqlx::test]
+async fn skipped_rows_say_why(pool: PgPool) {
+    let (a, s) = setup(pool, "stock_operator").await;
+    assert_eq!(
+        import(
+            &a,
+            &s,
+            "code,name,selling_price\nB 6143-8,Storage Box,1000\n",
+            false
+        )
+        .await
+        .status(),
+        200
+    );
+    let csv =
+        "code,name,selling_price\nB 6143-8,Storage Box,1000\nB 7-1,Plate,5\nB7-1,Lunch Box,5\n";
+    let rep = import(&a, &s, csv, true).await.json();
+    assert_eq!(statuses(&rep), ["skip", "create", "skip"]);
+    assert_eq!(rep["rows"][0]["note"], "Already in the catalogue.");
+    assert_eq!(rep["rows"][2]["note"], "Same code as row 3.");
+    assert_eq!(rep["rows"][1]["note"], Value::Null);
+}

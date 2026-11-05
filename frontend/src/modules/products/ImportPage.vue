@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ApiError, friendlyMessage } from '@/shared/api/errors'
+import { readCsvFile } from '@/shared/csv-file'
 import Badge from '@/shared/ui/Badge.vue'
 import { importProducts, type ImportReport } from './api'
-
-const MAX_BYTES = 1024 * 1024
 
 const fileName = ref<string | null>(null)
 const csv = ref<string | null>(null)
@@ -21,18 +20,17 @@ function plural(n: number, one: string, many = `${one}s`) {
 }
 
 async function onFile(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
   report.value = null
   done.value = null
   error.value = null
-  if (!file) return
-  if (file.size > MAX_BYTES) {
-    error.value = 'That file is larger than 1 MB. Split it into smaller files.'
+  const f = await readCsvFile(e.target as HTMLInputElement)
+  if (!f) return
+  if (!f.ok) {
+    error.value = f.error
     return
   }
-  fileName.value = file.name
-  csv.value = await file.text()
+  fileName.value = f.name
+  csv.value = f.text
   await check()
 }
 
@@ -75,7 +73,7 @@ function reset() {
 }
 
 const statusTone = { create: 'sage', skip: 'neutral', error: 'danger' } as const
-const statusLabel = { create: 'Add', skip: 'Already exists', error: 'Problem' } as const
+const statusLabel = { create: 'Add', skip: 'Skip', error: 'Problem' } as const
 </script>
 
 <template>
@@ -88,7 +86,7 @@ const statusLabel = { create: 'Add', skip: 'Already exists', error: 'Problem' } 
   <div v-if="done" class="card mt-6 border-sage bg-sage-tint p-5" role="status">
     <h2 class="text-xl font-bold text-sage-ink">Added {{ plural(done.created, 'product') }}</h2>
     <p class="mt-1 text-sage-ink">
-      <template v-if="done.skipped">{{ plural(done.skipped, 'row') }} skipped because the code already exists. </template>
+      <template v-if="done.skipped">{{ plural(done.skipped, 'row') }} skipped (code already used). </template>
       <template v-if="done.new_categories.length">New categories: {{ done.new_categories.join(', ') }}.</template>
     </p>
     <div class="mt-4 flex flex-wrap gap-2">
@@ -108,7 +106,7 @@ const statusLabel = { create: 'Add', skip: 'Already exists', error: 'Problem' } 
       <a href="/product-import-template.csv" download class="btn-secondary mt-4">Download the template</a>
 
       <h2 class="mt-8 text-xl font-bold">2. Choose the file</h2>
-      <label class="mt-3 flex cursor-pointer flex-wrap items-center gap-3">
+      <label class="mt-3 flex w-fit cursor-pointer flex-wrap items-center gap-3 rounded-control focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-primary">
         <span class="btn-primary">{{ fileName ? 'Choose another file' : 'Choose CSV file' }}</span>
         <span class="text-muted">{{ fileName ?? 'No file chosen' }}</span>
         <input type="file" accept=".csv,text/csv" class="sr-only" @change="onFile" />
@@ -123,8 +121,7 @@ const statusLabel = { create: 'Add', skip: 'Already exists', error: 'Problem' } 
         <div>
           <h2 id="preview-h" class="text-xl font-bold">3. Check and import</h2>
           <p class="mt-1 text-muted">
-            {{ plural(report.created, 'product') }} to add<template v-if="report.skipped">, {{ report.skipped }} already
-              {{ report.skipped === 1 ? 'exists' : 'exist' }}</template><template v-if="problems">,
+            {{ plural(report.created, 'product') }} to add<template v-if="report.skipped">, {{ report.skipped }} skipped</template><template v-if="problems">,
               <strong class="text-danger">{{ plural(problems, 'problem') }}</strong></template>.
             <template v-if="report.new_categories.length"> New categories: {{ report.new_categories.join(', ') }}.</template>
           </p>
@@ -154,6 +151,7 @@ const statusLabel = { create: 'Add', skip: 'Already exists', error: 'Problem' } 
               <td class="px-4 py-3">
                 <p class="font-semibold">{{ r.name || '(no name)' }}</p>
                 <p class="text-sm text-muted">{{ r.code ?? '' }}</p>
+                <p v-if="r.note" class="mt-1 text-sm text-muted">{{ r.note }}</p>
                 <ul v-if="r.errors.length" class="mt-1 space-y-0.5 text-sm text-danger">
                   <li v-for="(e, i) in r.errors" :key="i">{{ e.message }}</li>
                 </ul>

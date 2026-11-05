@@ -25,6 +25,9 @@ export function normalizeQuery(q: string): string {
     .toUpperCase()
     .replace(TRAILING_INCH, '')
     .replace(/^-+|-+$/g, '')
+    // `IP-1060-11` is `IP 1060-11` typed with a hyphen: drop hyphens between the letter
+    // prefix and the first digit so it can't become a different code.
+    .replace(/^(\p{L}+)-+(?=[0-9])/u, '$1')
 }
 
 /** Normalise a printed code. `null` if nothing code-like is left (empty or no digit). */

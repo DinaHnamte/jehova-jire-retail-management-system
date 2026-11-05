@@ -31,7 +31,17 @@ pub fn normalize_query(q: &str) -> String {
         .filter(|c| !c.is_whitespace())
         .collect::<String>()
         .to_uppercase();
-    s.trim_end_matches(INCH_MARKS).trim_matches('-').to_string()
+    let s = s.trim_end_matches(INCH_MARKS).trim_matches('-');
+    // `IP-1060-11` is `IP 1060-11` typed with a hyphen: drop hyphens between the letter
+    // prefix and the first digit so it can't become a different code.
+    let prefix_len = s.find(|c: char| !c.is_alphabetic()).unwrap_or(s.len());
+    let (prefix, rest) = s.split_at(prefix_len);
+    let rest_trimmed = rest.trim_start_matches('-');
+    if !prefix.is_empty() && rest_trimmed.starts_with(|c: char| c.is_ascii_digit()) {
+        format!("{prefix}{rest_trimmed}")
+    } else {
+        s.to_string()
+    }
 }
 
 /// Normalise a printed code. `None` if nothing code-like is left (empty or no digit).

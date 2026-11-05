@@ -44,6 +44,8 @@ pub struct ImportRow {
     pub code: Option<String>,
     pub name: String,
     pub status: &'static str,
+    /// Why a row is skipped.
+    pub note: Option<String>,
     pub errors: Vec<RowError>,
 }
 
@@ -61,6 +63,20 @@ struct Planned {
     product: ValidProduct,
     category_key: Option<String>,
     aliases: Vec<(String, String)>,
+}
+
+/// The csv crate reports a record that follows blank lines at the first blank line;
+/// step over the line breaks to the line the record really starts on.
+fn record_line(text: &str, p: &csv::Position) -> usize {
+    let mut line = p.line() as usize;
+    for b in text.as_bytes().iter().skip(p.byte() as usize) {
+        match b {
+            b'\n' => line += 1,
+            b'\r' => {}
+            _ => break,
+        }
+    }
+    line
 }
 
 fn invalid(msg: impl Into<String>) -> AppError {
@@ -116,12 +132,18 @@ pub async fn import(
     let col = |name: &str| headers.iter().position(|h| h == name);
 
     let mut records = Vec::new();
-    for (i, rec) in rdr.records().enumerate() {
-        let rec = rec.map_err(|e| invalid(format!("Row {}: {e}", i + 2)))?;
+    for rec in rdr.records() {
+        let rec = rec.map_err(|e| {
+            let line = e.position().map(|p| p.line()).unwrap_or(0);
+            invalid(format!("Row {line}: {e}"))
+        })?;
         if rec.iter().all(str::is_empty) {
             continue;
         }
-        records.push((i + 2, rec));
+        // The spreadsheet line the record starts on (header = 1), so "Row N" matches
+        // what people see even with blank lines or multi-line cells.
+        let line = rec.position().map(|p| record_line(text, p)).unwrap_or(0);
+        records.push((line, rec));
         if records.len() > MAX_ROWS {
             return Err(invalid(format!(
                 "Import at most {MAX_ROWS} products at a time."
@@ -149,6 +171,8 @@ pub async fn import(
 
     let mut rows = Vec::new();
     let mut planned = Vec::new();
+    // Codes planned earlier in this file → the row they're on.
+    let mut in_file: HashMap<(Uuid, String), usize> = HashMap::new();
     let mut new_categories: BTreeMap<String, String> = BTreeMap::new();
     let (mut created, mut skipped) = (0, 0);
 
@@ -202,6 +226,7 @@ pub async fn import(
                 code,
                 name,
                 status: "error",
+                note: None,
                 errors,
             });
             continue;
@@ -213,11 +238,16 @@ pub async fn import(
         );
         if taken.contains(&code_key) {
             skipped += 1;
+            let note = match in_file.get(&(brand_id, product.code.normalized.clone())) {
+                Some(first) => format!("Same code as row {first}."),
+                None => "Already in the catalogue.".to_string(),
+            };
             rows.push(ImportRow {
                 row: row_no,
                 code,
                 name,
                 status: "skip",
+                note: Some(note),
                 errors,
             });
             continue;
@@ -252,6 +282,7 @@ pub async fn import(
                 code,
                 name,
                 status: "error",
+                note: None,
                 errors,
             });
             continue;
@@ -265,6 +296,7 @@ pub async fn import(
             key
         });
         taken.insert(code_key);
+        in_file.insert((brand_id, product.code.normalized.clone()), row_no);
         for (_, norm) in &aliases {
             taken.insert((brand_id, "alias".to_string(), norm.clone()));
         }
@@ -274,6 +306,7 @@ pub async fn import(
             code,
             name,
             status: "create",
+            note: None,
             errors,
         });
         planned.push(Planned {
