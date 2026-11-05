@@ -5,6 +5,7 @@ import { useSessionStore } from '@/modules/auth/session.store'
 import { friendlyMessage } from '@/shared/api/errors'
 import { formatRupees } from '@/shared/money'
 import Badge from '@/shared/ui/Badge.vue'
+import StockCard from '@/modules/stock/StockCard.vue'
 import { addIdentifier, archiveProduct, getProduct, removeIdentifier, restoreProduct, type Product } from './api'
 
 const route = useRoute()
@@ -12,6 +13,7 @@ const session = useSessionStore()
 const id = route.params.id as string
 const canUpdate = computed(() => session.can('products.update'))
 const canArchive = computed(() => session.can('products.archive'))
+const canSeeStock = computed(() => session.can('inventory.read'))
 
 const product = ref<Product | null>(null)
 const error = ref<string | null>(null)
@@ -142,6 +144,8 @@ const add = () =>
         </dl>
       </section>
     </div>
+
+    <StockCard v-if="canSeeStock" :product-id="id" :archived="product.archived" />
 
     <section class="card mt-4 p-5 sm:p-6">
       <h2 class="text-xl font-bold">Other names and codes</h2>

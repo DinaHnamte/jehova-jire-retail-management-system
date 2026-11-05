@@ -17,4 +17,10 @@ describe('visibleNav', () => {
     expect(labels).toEqual(['Overview', 'Products'])
     expect(visibleNav(() => false).map((i) => i.label)).not.toContain('Products')
   })
+
+  it('shows Stock after Products to anyone with inventory.read', () => {
+    const labels = visibleNav((p) => p === 'products.read' || p === 'inventory.read').map((i) => i.label)
+    expect(labels).toEqual(['Overview', 'Products', 'Stock'])
+    expect(visibleNav((p) => p === 'products.read').map((i) => i.label)).not.toContain('Stock')
+  })
 })

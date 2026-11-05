@@ -68,5 +68,6 @@ export const api = {
   postRaw: <T>(path: string, body: string, contentType: string) =>
     request<T>('POST', path, body, { rawContentType: contentType }),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
+  put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),
 }
