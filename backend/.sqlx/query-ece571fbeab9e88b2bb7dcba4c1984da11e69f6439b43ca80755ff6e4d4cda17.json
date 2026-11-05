@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM stock_count_lines WHERE count_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ece571fbeab9e88b2bb7dcba4c1984da11e69f6439b43ca80755ff6e4d4cda17"
+}

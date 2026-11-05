@@ -1,4 +1,5 @@
 //! Inventory: stock ledger, suppliers, goods receipts, stock counts (Architecture.md §8, §9).
+pub mod counts;
 pub mod domain;
 pub mod ledger;
 pub mod receipts;
@@ -13,6 +14,7 @@ pub fn router() -> axum::Router<crate::AppState> {
     axum::Router::new()
         .merge(suppliers::router())
         .merge(receipts::router())
+        .merge(counts::router())
 }
 
 /// India Standard Time is a fixed UTC+05:30 with no daylight saving.

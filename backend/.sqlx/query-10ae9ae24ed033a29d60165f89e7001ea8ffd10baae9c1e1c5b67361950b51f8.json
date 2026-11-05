@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE stock_count_lines SET expected = $3 WHERE count_id = $1 AND product_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "10ae9ae24ed033a29d60165f89e7001ea8ffd10baae9c1e1c5b67361950b51f8"
+}
