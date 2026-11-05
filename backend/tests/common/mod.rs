@@ -212,3 +212,19 @@ impl TestApp {
         }
     }
 }
+
+/// Insert a bare Ektra product (no identifiers) owned by `owner`; returns its id.
+pub async fn seed_product(pool: &PgPool, owner: uuid::Uuid, name: &str) -> uuid::Uuid {
+    let id = uuid::Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO products (id, brand_id, name, selling_price, created_by)
+         VALUES ($1, '00000000-0000-7000-8001-000000000001', $2, 100, $3)",
+    )
+    .bind(id)
+    .bind(name)
+    .bind(owner)
+    .execute(pool)
+    .await
+    .unwrap();
+    id
+}
