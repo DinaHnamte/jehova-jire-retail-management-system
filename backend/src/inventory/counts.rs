@@ -134,7 +134,7 @@ pub async fn load(conn: &mut PgConnection, id: Uuid) -> AppResult<CountOut> {
     .ok_or(AppError::NotFound)?;
     let rows = sqlx::query!(
         r#"SELECT l.product_id,
-                  (SELECT raw_value FROM product_identifiers
+                  (SELECT normalized_value FROM product_identifiers
                     WHERE product_id = l.product_id AND identifier_type = 'product_code') AS code,
                   p.name, l.counted, l.unit_cost, l.expected,
                   COALESCE(b.on_hand, 0) AS "on_hand_now!",

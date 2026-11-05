@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countDifference, grandTotal, lineTotal } from './totals'
+import { countDifference, fieldToLineIndex, grandTotal, lineTotal } from './totals'
 
 describe('lineTotal', () => {
   it('multiplies in whole paise, no float error', () => {
@@ -35,5 +35,14 @@ describe('countDifference', () => {
     expect(countDifference('15', 12)).toBe(3)
     expect(countDifference('', 12)).toBeNull()
     expect(countDifference('x', 12)).toBeNull()
+  })
+})
+
+describe('fieldToLineIndex', () => {
+  it('reads the line and key from an API field path', () => {
+    expect(fieldToLineIndex('lines[2].unit_cost')).toEqual({ index: 2, key: 'unit_cost' })
+    expect(fieldToLineIndex('lines[0].quantity')).toEqual({ index: 0, key: 'quantity' })
+    expect(fieldToLineIndex('name')).toBeNull()
+    expect(fieldToLineIndex(undefined)).toBeNull()
   })
 })

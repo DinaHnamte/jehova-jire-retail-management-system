@@ -45,3 +45,9 @@ export function countDifference(counted: string, onHand: number): number | null 
   const n = parseQuantity(counted, 0)
   return n === null ? null : n - onHand
 }
+
+/** `"lines[2].unit_cost"` → `{ index: 2, key: 'unit_cost' }`, for pointing an API error at a row. */
+export function fieldToLineIndex(field: string | undefined | null): { index: number; key: string } | null {
+  const m = /^lines\[(\d+)\]\.(\w+)$/.exec(field ?? '')
+  return m ? { index: Number(m[1]), key: m[2]! } : null
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT l.product_id,\n                  (SELECT raw_value FROM product_identifiers\n                    WHERE product_id = l.product_id AND identifier_type = 'product_code') AS code,\n                  p.name, l.counted, l.unit_cost, l.expected,\n                  COALESCE(b.on_hand, 0) AS \"on_hand_now!\",\n                  ($2 = 'draft' AND EXISTS (\n                      SELECT 1 FROM stock_movements m\n                       WHERE m.product_id = l.product_id AND m.created_at > $3)) AS \"changed!\"\n           FROM stock_count_lines l\n           JOIN products p ON p.id = l.product_id\n           LEFT JOIN stock_balances b ON b.product_id = l.product_id AND b.location_id = $4\n           WHERE l.count_id = $1 ORDER BY l.id",
+  "query": "SELECT l.product_id,\n                  (SELECT normalized_value FROM product_identifiers\n                    WHERE product_id = l.product_id AND identifier_type = 'product_code') AS code,\n                  p.name, l.counted, l.unit_cost, l.expected,\n                  COALESCE(b.on_hand, 0) AS \"on_hand_now!\",\n                  ($2 = 'draft' AND EXISTS (\n                      SELECT 1 FROM stock_movements m\n                       WHERE m.product_id = l.product_id AND m.created_at > $3)) AS \"changed!\"\n           FROM stock_count_lines l\n           JOIN products p ON p.id = l.product_id\n           LEFT JOIN stock_balances b ON b.product_id = l.product_id AND b.location_id = $4\n           WHERE l.count_id = $1 ORDER BY l.id",
   "describe": {
     "columns": [
       {
@@ -96,5 +96,5 @@
       null
     ]
   },
-  "hash": "94d2b1c7726ee2b5ac4d7886a26d35f8179b8729f24eca3961588e4f9d5fb78e"
+  "hash": "9f7daad4f4c02220e14020382e13179d0ea2933311fcb99460106e66214b386d"
 }

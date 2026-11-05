@@ -50,7 +50,7 @@ pub(crate) async fn check_line_products(
 ) -> crate::error::AppResult<()> {
     let rows = sqlx::query!(
         r#"SELECT p.id, p.archived_at IS NOT NULL AS "archived!",
-                  COALESCE((SELECT raw_value FROM product_identifiers
+                  COALESCE((SELECT normalized_value FROM product_identifiers
                              WHERE product_id = p.id AND identifier_type = 'product_code'),
                            p.name) AS "label!"
            FROM products p WHERE p.id = ANY($1)"#,

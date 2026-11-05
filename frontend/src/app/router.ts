@@ -47,6 +47,21 @@ export const router = createRouter({
           meta: { perm: 'inventory.read', title: 'Stock' },
         },
         {
+          path: 'stock/suppliers',
+          component: () => import('@/modules/stock/SuppliersPage.vue'),
+          meta: { perm: 'purchases.read', title: 'Suppliers' },
+        },
+        {
+          path: 'stock/receipts',
+          component: () => import('@/modules/stock/ReceiptsPage.vue'),
+          meta: { perm: 'purchases.read', title: 'Receive goods' },
+        },
+        {
+          path: 'stock/receipts/:id',
+          component: () => import('@/modules/stock/ReceiptEditorPage.vue'),
+          meta: { perm: 'purchases.read', title: 'Receipt' },
+        },
+        {
           path: 'lab/ocr',
           component: () => import('@/modules/lab/OcrLabPage.vue'),
           meta: { perm: 'users.manage', title: 'OCR test' },

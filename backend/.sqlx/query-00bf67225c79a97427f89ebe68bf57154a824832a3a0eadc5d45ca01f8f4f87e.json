@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(\n               (SELECT normalized_value FROM product_identifiers\n                 WHERE product_id = p.id AND identifier_type = 'product_code'),\n               p.name) AS \"label!\"\n           FROM products p WHERE p.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "label!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "00bf67225c79a97427f89ebe68bf57154a824832a3a0eadc5d45ca01f8f4f87e"
+}

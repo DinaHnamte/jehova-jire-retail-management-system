@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT p.id, p.archived_at IS NOT NULL AS \"archived!\",\n                  COALESCE((SELECT raw_value FROM product_identifiers\n                             WHERE product_id = p.id AND identifier_type = 'product_code'),\n                           p.name) AS \"label!\"\n           FROM products p WHERE p.id = ANY($1)",
+  "query": "SELECT p.id, p.archived_at IS NOT NULL AS \"archived!\",\n                  COALESCE((SELECT normalized_value FROM product_identifiers\n                             WHERE product_id = p.id AND identifier_type = 'product_code'),\n                           p.name) AS \"label!\"\n           FROM products p WHERE p.id = ANY($1)",
   "describe": {
     "columns": [
       {
@@ -38,5 +38,5 @@
       null
     ]
   },
-  "hash": "25b79840fad3abf6c6e794d9708c67fc54e220692a9e22aa297102a1da85e8eb"
+  "hash": "c151af43b20bcd8e9135cad845d323cb01fe7d05ff47db6e2c37b69f39669fbc"
 }

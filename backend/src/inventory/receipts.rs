@@ -143,7 +143,7 @@ pub async fn load(conn: &mut PgConnection, id: Uuid) -> AppResult<ReceiptOut> {
     let lines = sqlx::query_as!(
         ReceiptLineOut,
         r#"SELECT l.product_id,
-                  (SELECT raw_value FROM product_identifiers
+                  (SELECT normalized_value FROM product_identifiers
                     WHERE product_id = l.product_id AND identifier_type = 'product_code') AS code,
                   p.name, l.quantity, l.unit_cost, (l.quantity * l.unit_cost) AS "line_total!"
            FROM goods_receipt_lines l JOIN products p ON p.id = l.product_id

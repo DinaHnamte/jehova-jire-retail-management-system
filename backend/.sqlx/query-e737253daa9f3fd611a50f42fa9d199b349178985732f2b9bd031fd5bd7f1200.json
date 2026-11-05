@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT l.product_id,\n                  (SELECT raw_value FROM product_identifiers\n                    WHERE product_id = l.product_id AND identifier_type = 'product_code') AS code,\n                  p.name, l.quantity, l.unit_cost, (l.quantity * l.unit_cost) AS \"line_total!\"\n           FROM goods_receipt_lines l JOIN products p ON p.id = l.product_id\n           WHERE l.receipt_id = $1 ORDER BY l.id",
+  "query": "SELECT l.product_id,\n                  (SELECT normalized_value FROM product_identifiers\n                    WHERE product_id = l.product_id AND identifier_type = 'product_code') AS code,\n                  p.name, l.quantity, l.unit_cost, (l.quantity * l.unit_cost) AS \"line_total!\"\n           FROM goods_receipt_lines l JOIN products p ON p.id = l.product_id\n           WHERE l.receipt_id = $1 ORDER BY l.id",
   "describe": {
     "columns": [
       {
@@ -74,5 +74,5 @@
       null
     ]
   },
-  "hash": "886ba5ed6b0ce0b2663b1a5eecfedd1cc48895fda011249adf89692c9136bc19"
+  "hash": "e737253daa9f3fd611a50f42fa9d199b349178985732f2b9bd031fd5bd7f1200"
 }

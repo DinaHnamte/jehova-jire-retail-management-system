@@ -109,7 +109,7 @@ async fn draft_lifecycle(pool: PgPool) {
     assert_eq!(v["status"], "draft");
     assert_eq!(v["total"], "1445.00");
     assert_eq!(v["supplier"]["name"], "Superware");
-    assert_eq!(v["lines"][0]["code"], "B 6143-8");
+    assert_eq!(v["lines"][0]["code"], "B6143-8");
     assert_eq!(v["lines"][0]["line_total"], "1205.00");
     let list =
         c.a.get_with("/api/v1/goods-receipts", Some(&c.s.cookie))
@@ -325,7 +325,7 @@ async fn archived_product_blocks_confirm(pool: PgPool) {
     assert_eq!(r.json()["error"]["details"]["field"], "lines[0].product_id");
     assert_eq!(
         r.json()["error"]["message"],
-        "B 6143-8 is archived. Remove it from this receipt."
+        "B6143-8 is archived. Remove it from this receipt."
     );
     assert_eq!(c.movements().await, 0);
 }

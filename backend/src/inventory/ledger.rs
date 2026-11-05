@@ -73,7 +73,7 @@ pub async fn lock_balances(
 pub async fn product_label(conn: &mut PgConnection, product_id: Uuid) -> AppResult<String> {
     Ok(sqlx::query_scalar!(
         r#"SELECT COALESCE(
-               (SELECT raw_value FROM product_identifiers
+               (SELECT normalized_value FROM product_identifiers
                  WHERE product_id = p.id AND identifier_type = 'product_code'),
                p.name) AS "label!"
            FROM products p WHERE p.id = $1"#,

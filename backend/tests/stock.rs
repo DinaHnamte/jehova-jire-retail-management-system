@@ -169,7 +169,7 @@ async fn adjust_below_zero_is_422_insufficient_stock(pool: PgPool) {
     assert_eq!(r.json()["error"]["code"], "INSUFFICIENT_STOCK");
     assert_eq!(
         r.json()["error"]["message"],
-        "Only 3 of B 6143-8 in stock. Enter 3 or less."
+        "Only 3 of B6143-8 in stock. Enter 3 or less."
     );
 }
 
