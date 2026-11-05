@@ -7,3 +7,6 @@ storage/
 .superpowers/
 *.log
 coverage/
+
+# Full-size label photos (resized copies are committed)
+fixtures/labels/originals/

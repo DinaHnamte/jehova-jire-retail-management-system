@@ -240,8 +240,13 @@ from one shared fixtures file.
 
 Normalisation:
 1. Unicode NFKC; turn all dash characters into `-`; uppercase.
-2. Remove spaces: `B 6275-4.75` → `B6275-4.75`.
+2. Remove spaces and a trailing inch mark: `B 6275-4.75` → `B6275-4.75`,
+   `IB 1290 -7.8"` → `IB1290-7.8`.
 3. Split into a **base code** `B6275` and a **variant** `4.75`.
+
+A design or colour code printed after the model code (`MP4952`,
+`MG4705`) is not part of the product's identity and is dropped
+([ADR-0003](docs/adr/0003-product-identification-without-barcodes.md)).
 
 All size variants share one base code. Search groups results by base
 code, so the cashier sees every size of a model together.
@@ -293,19 +298,34 @@ The parser proposes values in stages, and every proposal keeps a
 reference to the OCR line it came from:
 
 1. Normalise text, keeping the original as well.
-2. Product code: configurable patterns per brand. For Ektra:
-   `\bB\s?\d{4,}(?:-\d+(?:\.\d+)?)?\b`.
-3. Dimensions and units (`4.75`, `inch`, `"`, `H1:3`).
-4. Quantity and pack wording (`1 Pcs Set`).
-5. Known attributes from a vocabulary table (shape, size, lid, material).
-6. Leftover text becomes candidates for the name and description.
+2. Product code: configurable patterns per brand. For Ektra, one to
+   three letters, four digits, a hyphen and a size, with optional
+   spaces: `\b[A-Z]{1,3}\s?\d{4}\s?-\s?\d+(?:\.\d+)?"?`
+   (matches `B 6143-8`, `IP 1060-11"`, `IB 1290 -7.8"`). The size is
+   required: it is what tells a model code from a design code.
+3. Design code: letters and four digits with **no** size (`MP4952`),
+   which on plain labels can stand on a line of its own. Recognised so
+   it can't be taken for the model code, then dropped. Design names
+   (`Retro Daisy`) are left in the leftover text. If a label has no
+   sized code at all, an unsized one is offered as a low-confidence
+   guess for the person to check.
+4. MRP: `MRP\s*:?\s*₹?\s*([\d,]+)`; the rupee sign is often misread,
+   so the number after `MRP` is enough.
+5. Dimensions and units (`4.75`, `inch`, `"`, `H;5`).
+6. Quantity and pack wording (`1 Pcs Set`, `1 Pcs./Set`).
+7. Known attributes from a vocabulary table (shape, size, lid, material).
+8. Leftover text becomes candidates for the name and description.
+   Lines from the maker's address block (`Marketed By`, `Mfg. By`,
+   `Plot`, `Email`, `Customer Care`) and `Mfg. Date` are discarded.
 
 The parser never invents a value. A field it can't find stays empty.
 
 ### 7.3 Test corpus
 
 Real label photos go in `fixtures/labels/` with the expected fields in a
-JSON file next to each one. CI measures field accuracy (product code,
+JSON file next to each one ([README](fixtures/labels/README.md); 5
+photos so far, covering plain and price labels, three code prefixes,
+two designs of one product and a blurry shot). CI measures field accuracy (product code,
 name, size) for each field, and reports a drop as a failure. Include
 blurry, rotated, dim and partly covered labels.
 
@@ -832,7 +852,7 @@ Each phase is a working vertical slice with exit criteria.
 
 | Question | Needed by |
 |---|---|
-| Photos of 5–10 real Ektra labels (more later for the corpus) | Phase 3 |
+| ~~Photos of real Ektra labels~~ 5 received 5 Nov 2026; more welcome for the corpus | Phase 3 |
 | Which devices: shop desktop/tablet model, staff and driver phones | Phase 3 spike |
 | Receipt printer: model, 58 or 80 mm, USB or Bluetooth | Phase 5 |
 | Number of cashiers; is shift/till open-close needed? | Phase 5 |
