@@ -83,6 +83,7 @@ async fn serve(config: Config) -> Result<()> {
         .await
         .with_context(|| format!("binding {}", config.bind))?;
     tracing::info!(bind = %config.bind, "jj-retail-api listening");
+    tokio::spawn(jj_retail_api::inventory::check::nightly(pool.clone()));
     let app = build_app(AppState::new(pool, config));
     axum::serve(
         listener,

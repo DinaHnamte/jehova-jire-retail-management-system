@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT product_id AS \"product_id!\",\n                  COALESCE(b.on_hand, 0) AS \"balance!\",\n                  COALESCE(s.total, 0)::bigint AS \"ledger_sum!\"\n           FROM (SELECT product_id, sum(quantity) AS total FROM stock_movements\n                  WHERE location_id = $1 GROUP BY product_id) s\n           FULL JOIN (SELECT product_id, on_hand FROM stock_balances WHERE location_id = $1) b\n             USING (product_id)\n           WHERE COALESCE(b.on_hand, 0) <> COALESCE(s.total, 0)\n           ORDER BY product_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "product_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "balance!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "ledger_sum!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "6d804b5553ca3ade9cd79c260be168f384b4fb22d815cd269b49dbc5fc486f5d"
+}
