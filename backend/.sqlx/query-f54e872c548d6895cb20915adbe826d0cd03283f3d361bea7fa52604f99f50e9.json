@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT transaction_id AS \"transaction_id!\" FROM ledger_entries\n           GROUP BY transaction_id HAVING SUM(amount) <> 0\n           ORDER BY transaction_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "transaction_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "ledger_entries",
+            "name": "transaction_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f54e872c548d6895cb20915adbe826d0cd03283f3d361bea7fa52604f99f50e9"
+}

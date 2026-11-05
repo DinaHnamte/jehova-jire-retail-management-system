@@ -121,13 +121,27 @@ export interface CountSummary {
   line_count: number
 }
 
-export interface Mismatch {
+export interface StockMismatch {
+  kind: 'stock'
   product_id: string
   code: string | null
   name: string
   balance: number
   ledger_sum: number
 }
+
+export interface LedgerUnbalanced {
+  kind: 'ledger_unbalanced'
+  transaction_id: string
+}
+
+export interface ReceivableOutOfRange {
+  kind: 'receivable_out_of_range'
+  order_id: string
+  owed: string
+}
+
+export type Mismatch = StockMismatch | LedgerUnbalanced | ReceivableOutOfRange
 
 export interface CheckRun {
   id: string

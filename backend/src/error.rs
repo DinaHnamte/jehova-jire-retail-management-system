@@ -162,6 +162,21 @@ impl AppError {
         }
     }
 
+    /// 422: a later payment is more than the customer owes; `details.max` is the most that can be paid.
+    pub fn payment_over_owed(max: rust_decimal::Decimal) -> Self {
+        let mut max = max;
+        max.rescale(2);
+        Self::Coded {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "OVERPAYMENT",
+            message: format!(
+                "That's more than the customer owes. Enter {} or less.",
+                crate::shared::money::format_rupees(max)
+            ),
+            details: json!({ "max": max.to_string() }),
+        }
+    }
+
     /// 422: a later payment was entered for a customer who owes nothing.
     pub fn nothing_owed() -> Self {
         Self::Coded {

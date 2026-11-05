@@ -10,15 +10,24 @@ use uuid::Uuid;
 use super::{SHOP_LOCATION_ID, ist};
 use crate::{AppState, admin::session::CurrentUser, error::AppResult, shared::ids::new_id};
 
+/// One thing the nightly check found wrong. Stored with a `kind`; rows saved before money checks
+/// existed have none and are read as stock.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct Mismatch {
-    pub product_id: Uuid,
-    #[serde(default)]
-    pub code: Option<String>,
-    #[serde(default)]
-    pub name: String,
-    pub balance: i64,
-    pub ledger_sum: i64,
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Mismatch {
+    Stock {
+        product_id: Uuid,
+        #[serde(default)]
+        code: Option<String>,
+        #[serde(default)]
+        name: String,
+        balance: i64,
+        ledger_sum: i64,
+    },
+    /// A ledger transaction whose entries do not add up to 0.
+    LedgerUnbalanced { transaction_id: Uuid },
+    /// A confirmed order that is owed less than nothing, or more than its total.
+    ReceivableOutOfRange { order_id: Uuid, owed: String },
 }
 
 #[derive(Debug, Serialize)]
@@ -63,14 +72,42 @@ pub async fn run(db: &PgPool) -> AppResult<CheckRun> {
     )
     .fetch_all(db)
     .await?;
-    let stored: Vec<Value> = rows
+    let mut stored: Vec<Value> = rows
         .iter()
         .map(|r| {
             serde_json::json!({
+                "kind": "stock",
                 "product_id": r.product_id, "balance": r.balance, "ledger_sum": r.ledger_sum
             })
         })
         .collect();
+    let unbalanced = sqlx::query_scalar!(
+        r#"SELECT transaction_id AS "transaction_id!" FROM ledger_entries
+           GROUP BY transaction_id HAVING SUM(amount) <> 0
+           ORDER BY transaction_id"#
+    )
+    .fetch_all(db)
+    .await?;
+    let out_of_range = sqlx::query!(
+        r#"SELECT o.id AS "id!", r.owed AS "owed!"
+           FROM orders o
+           CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e
+                               WHERE e.account = 'receivable' AND e.ref_id = o.id) r
+           WHERE o.status = 'confirmed' AND (r.owed < 0 OR r.owed > o.total)
+           ORDER BY o.id"#
+    )
+    .fetch_all(db)
+    .await?;
+    for t in &unbalanced {
+        stored.push(serde_json::json!({ "kind": "ledger_unbalanced", "transaction_id": t }));
+    }
+    for o in &out_of_range {
+        stored.push(serde_json::json!({
+            "kind": "receivable_out_of_range", "order_id": o.id,
+            "owed": format!("{:.2}", o.owed.round_dp(2))
+        }));
+    }
+    let found = stored.len();
     let id = new_id();
     sqlx::query!(
         "INSERT INTO stock_check_runs (id, mismatches) VALUES ($1, $2)",
@@ -79,10 +116,10 @@ pub async fn run(db: &PgPool) -> AppResult<CheckRun> {
     )
     .execute(db)
     .await?;
-    if !rows.is_empty() {
+    if found > 0 {
         tracing::error!(
-            mismatches = rows.len(),
-            "stock check found balances that differ from the ledger"
+            mismatches = found,
+            "nightly check found stock or money that differs from the ledger"
         );
     }
     load(db, id).await.map(|r| r.expect("just inserted"))
@@ -98,9 +135,27 @@ async fn load(db: &PgPool, id: Uuid) -> AppResult<Option<CheckRun>> {
     else {
         return Ok(None);
     };
-    let mut mismatches: Vec<Mismatch> =
-        serde_json::from_value(row.mismatches).map_err(anyhow::Error::from)?;
-    let ids: Vec<Uuid> = mismatches.iter().map(|m| m.product_id).collect();
+    let Value::Array(raw) = row.mismatches else {
+        return Err(anyhow::anyhow!("stock check mismatches is not an array").into());
+    };
+    let mut mismatches = raw
+        .into_iter()
+        .map(|mut v| {
+            // Rows saved before money checks existed have no kind: they are stock rows.
+            if let Some(o) = v.as_object_mut() {
+                o.entry("kind").or_insert_with(|| Value::from("stock"));
+            }
+            serde_json::from_value::<Mismatch>(v)
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(anyhow::Error::from)?;
+    let ids: Vec<Uuid> = mismatches
+        .iter()
+        .filter_map(|m| match m {
+            Mismatch::Stock { product_id, .. } => Some(*product_id),
+            _ => None,
+        })
+        .collect();
     let names = sqlx::query!(
         r#"SELECT p.id, p.name, pi.normalized_value AS "code?"
            FROM products p
@@ -111,9 +166,16 @@ async fn load(db: &PgPool, id: Uuid) -> AppResult<Option<CheckRun>> {
     .fetch_all(db)
     .await?;
     for m in &mut mismatches {
-        if let Some(n) = names.iter().find(|n| n.id == m.product_id) {
-            m.name = n.name.clone();
-            m.code = n.code.clone();
+        if let Mismatch::Stock {
+            product_id,
+            name,
+            code,
+            ..
+        } = m
+            && let Some(n) = names.iter().find(|n| n.id == *product_id)
+        {
+            *name = n.name.clone();
+            *code = n.code.clone();
         }
     }
     Ok(Some(CheckRun {

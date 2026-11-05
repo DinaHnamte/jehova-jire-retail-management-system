@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(SUM(e.amount) FILTER (WHERE e.account = 'cash' AND e.amount > 0), 0) AS \"cash!\",\n                  COALESCE(SUM(e.amount) FILTER (WHERE e.account = 'upi' AND e.amount > 0), 0) AS \"upi!\"\n           FROM ledger_entries e\n           JOIN ledger_transactions t ON t.id = e.transaction_id\n           WHERE t.kind = 'payment' AND t.occurred_at >= $1 AND t.occurred_at < $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cash!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "upi!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "6ea16e73206288c49b0bbb13dea104696b734c8de245ed923c5eb355f908ee54"
+}

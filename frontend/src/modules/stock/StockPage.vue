@@ -136,8 +136,12 @@ const range = computed(() => {
       Stock check found {{ mismatches }} {{ mismatches === 1 ? 'mismatch' : 'mismatches' }}. Tell the admin.
     </p>
     <ul class="mt-1 text-sm">
-      <li v-for="m in check!.mismatches" :key="m.product_id">
-        {{ m.code ?? m.name }}: app shows {{ m.balance }}, history adds up to {{ m.ledger_sum }}
+      <li v-for="(m, i) in check!.mismatches" :key="i">
+        <template v-if="m.kind === 'stock'">
+          {{ m.code ?? m.name }}: app shows {{ m.balance }}, history adds up to {{ m.ledger_sum }}
+        </template>
+        <template v-else-if="m.kind === 'ledger_unbalanced'">A money entry does not add up to zero.</template>
+        <template v-else>An order shows ₹{{ m.owed }} owed, which is not possible.</template>
       </li>
     </ul>
   </div>

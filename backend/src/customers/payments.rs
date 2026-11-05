@@ -90,7 +90,7 @@ pub async fn record(
         return Err(AppError::nothing_owed());
     }
     if amount > owes {
-        return Err(AppError::overpayment(owes));
+        return Err(AppError::payment_over_owed(owes));
     }
     let open = ledger::customer_open_orders(&mut tx, customer_id).await?;
     let shares = allocate(amount, &open);
@@ -98,7 +98,7 @@ pub async fn record(
     if applied_total != amount {
         // owes counts orders that are not open (e.g. cancelled), so the open ones can't cover it.
         let open_total: Decimal = open.iter().map(|(_, a)| *a).sum();
-        return Err(AppError::overpayment(open_total));
+        return Err(AppError::payment_over_owed(open_total));
     }
 
     let cash_account = if method == Method::Cash {

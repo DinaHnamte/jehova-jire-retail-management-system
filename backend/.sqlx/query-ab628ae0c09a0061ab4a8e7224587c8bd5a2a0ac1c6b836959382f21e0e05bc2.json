@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(SUM(amount), 0) AS \"owed!\" FROM ledger_entries WHERE account = 'receivable'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "owed!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ab628ae0c09a0061ab4a8e7224587c8bd5a2a0ac1c6b836959382f21e0e05bc2"
+}

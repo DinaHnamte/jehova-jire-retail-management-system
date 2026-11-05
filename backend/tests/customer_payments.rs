@@ -146,6 +146,10 @@ async fn payment_over_owes_is_refused(pool: PgPool) {
     assert_eq!(r.status(), 422);
     assert_eq!(r.json()["error"]["code"], "OVERPAYMENT");
     assert_eq!(r.json()["error"]["details"]["max"], "400.00");
+    assert_eq!(
+        r.json()["error"]["message"],
+        "That's more than the customer owes. Enter ₹400.00 or less."
+    );
     // Nothing was written.
     let d =
         sh.a.get_with(
