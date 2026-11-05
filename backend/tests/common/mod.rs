@@ -228,3 +228,43 @@ pub async fn seed_product(pool: &PgPool, owner: uuid::Uuid, name: &str) -> uuid:
     .unwrap();
     id
 }
+
+impl TestApp {
+    pub async fn put_json(
+        &self,
+        path: &str,
+        body: Value,
+        cookie: Option<&str>,
+        csrf: Option<&str>,
+    ) -> TestResponse {
+        self.request(
+            "PUT",
+            path,
+            Some("application/json"),
+            Some(body.to_string()),
+            cookie,
+            csrf,
+        )
+        .await
+    }
+
+    /// Create a product through the API (as a user who can) and return its id.
+    pub async fn product(&self, s: &Session, code: &str, name: &str) -> String {
+        let r = self
+            .post_json(
+                "/api/v1/products",
+                serde_json::json!({"name": name, "code": code, "selling_price": "150"}),
+                Some(&s.cookie),
+                Some(&s.csrf),
+            )
+            .await;
+        assert_eq!(r.status(), 201, "{:?}", r.json());
+        r.json()["id"].as_str().unwrap().to_string()
+    }
+
+    /// POST with an empty JSON body and the session's CSRF token.
+    pub async fn post_empty(&self, path: &str, s: &Session) -> TestResponse {
+        self.post_json(path, serde_json::json!({}), Some(&s.cookie), Some(&s.csrf))
+            .await
+    }
+}

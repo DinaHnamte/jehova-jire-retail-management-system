@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE goods_receipts SET\n           supplier_id = COALESCE($2, supplier_id),\n           received_on = COALESCE($3, received_on),\n           note = CASE WHEN $4 THEN $5 ELSE note END,\n           updated_at = now()\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e7bcce1d65e0c8835d6b13fca798aa08a222d334a35a5ec57fb50cbccc962abf"
+}

@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id, p.archived_at IS NOT NULL AS \"archived!\",\n                  COALESCE((SELECT raw_value FROM product_identifiers\n                             WHERE product_id = p.id AND identifier_type = 'product_code'),\n                           p.name) AS \"label!\"\n           FROM products p WHERE p.id = ANY($1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "archived!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "label!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "25b79840fad3abf6c6e794d9708c67fc54e220692a9e22aa297102a1da85e8eb"
+}

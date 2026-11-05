@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO goods_receipt_lines (id, receipt_id, product_id, quantity, unit_cost)\n             VALUES ($1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Numeric"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8b2fbe42f4e82049d16241920cb04470ad4175a5e5f4e93b119d4dfc61510b5e"
+}

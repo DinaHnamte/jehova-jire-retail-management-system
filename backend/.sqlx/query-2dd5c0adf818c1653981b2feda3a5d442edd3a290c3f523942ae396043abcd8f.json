@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT status, supplier_id FROM goods_receipts WHERE id = $1 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "goods_receipts",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "supplier_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "goods_receipts",
+            "name": "supplier_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "2dd5c0adf818c1653981b2feda3a5d442edd3a290c3f523942ae396043abcd8f"
+}

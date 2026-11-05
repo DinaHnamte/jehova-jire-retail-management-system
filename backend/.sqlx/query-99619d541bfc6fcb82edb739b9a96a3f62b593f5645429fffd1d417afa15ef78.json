@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM goods_receipt_lines WHERE receipt_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "99619d541bfc6fcb82edb739b9a96a3f62b593f5645429fffd1d417afa15ef78"
+}
