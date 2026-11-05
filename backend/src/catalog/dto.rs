@@ -40,6 +40,7 @@ pub struct CreateProduct {
     pub mrp: Option<String>,
     pub default_cost: Option<String>,
     pub hsn_code: Option<String>,
+    pub design_code: Option<String>,
 }
 
 /// PATCH body: absent fields are unchanged; `null` clears an optional field.
@@ -63,6 +64,8 @@ pub struct UpdateProduct {
     pub default_cost: Option<Option<String>>,
     #[serde(default, deserialize_with = "double")]
     pub hsn_code: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double")]
+    pub design_code: Option<Option<String>>,
 }
 
 #[derive(Deserialize)]
@@ -92,6 +95,7 @@ pub struct ProductOut {
     pub code: Option<String>,
     pub base_code: Option<String>,
     pub variant: Option<String>,
+    pub design_code: Option<String>,
     pub unit: String,
     pub pack_qty: i32,
     pub attributes: Value,

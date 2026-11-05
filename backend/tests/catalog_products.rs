@@ -408,3 +408,80 @@ async fn unknown_product_is_404(pool: PgPool) {
     assert_eq!(r.status(), 404);
     assert_eq!(r.json()["error"]["code"], "NOT_FOUND");
 }
+
+// ---------- design codes (ADR-0003 revised: each design is its own product) ----------
+
+fn plate_in(design: Option<&str>) -> serde_json::Value {
+    let mut b = plate();
+    if let Some(d) = design {
+        b["design_code"] = json!(d);
+    }
+    b
+}
+
+#[sqlx::test]
+async fn each_design_is_its_own_product(pool: PgPool) {
+    let c = ctx(pool).await;
+    let pink = c.create(plate_in(Some("MP4952"))).await;
+    assert_eq!(
+        pink.status(),
+        201,
+        "{}",
+        String::from_utf8_lossy(&pink.body)
+    );
+    assert_eq!(pink.json()["code"], "IP1060-11");
+    assert_eq!(pink.json()["design_code"], "MP4952");
+    let green = c.create(plate_in(Some("mg 4705"))).await;
+    assert_eq!(green.status(), 201);
+    assert_eq!(green.json()["design_code"], "MG4705");
+    // same model and design again: duplicate, named with the design
+    let r = c.create(plate_in(Some("mp4952"))).await;
+    assert_eq!(r.status(), 409);
+    let e = &r.json()["error"];
+    assert_eq!(e["code"], "DUPLICATE_CODE");
+    assert!(e["message"].as_str().unwrap().contains("MP4952"), "{e}");
+    // no design is a separate identity too
+    assert_eq!(c.create(plate_in(None)).await.status(), 201);
+    assert_eq!(c.create(plate_in(None)).await.status(), 409);
+}
+
+#[sqlx::test]
+async fn design_code_must_be_letters_and_digits(pool: PgPool) {
+    let c = ctx(pool).await;
+    for bad in ["MP#4952", "Retro Daisy!", "ABCDEFGHIJKLMNOPQRSTU"] {
+        let r = c.create(plate_in(Some(bad))).await;
+        assert_eq!(r.status(), 422, "{bad}");
+        assert_eq!(r.json()["error"]["details"]["field"], "design_code");
+    }
+    let r = c.create(plate_in(Some("  "))).await;
+    assert_eq!(r.status(), 201);
+    assert_eq!(r.json()["design_code"], serde_json::Value::Null);
+}
+
+#[sqlx::test]
+async fn patch_changes_or_clears_design(pool: PgPool) {
+    let c = ctx(pool).await;
+    let id = c.create(plate_in(Some("MP4952"))).await.json()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    c.create(plate_in(Some("MG4705"))).await;
+    let path = format!("/api/v1/products/{id}");
+    let patch = |body: serde_json::Value| {
+        let (a, ck, cs, p) = (
+            &c.a,
+            c.stock.cookie.clone(),
+            c.stock.csrf.clone(),
+            path.clone(),
+        );
+        async move { a.patch_json(&p, body, Some(&ck), Some(&cs)).await }
+    };
+    // moving onto another product's design is a duplicate
+    assert_eq!(patch(json!({"design_code": "mg4705"})).await.status(), 409);
+    let r = patch(json!({"design_code": "MR1000"})).await;
+    assert_eq!(r.status(), 200, "{}", String::from_utf8_lossy(&r.body));
+    assert_eq!(r.json()["design_code"], "MR1000");
+    let r = patch(json!({"design_code": null})).await;
+    assert_eq!(r.json()["design_code"], serde_json::Value::Null);
+    assert_eq!(r.json()["code"], "IP1060-11");
+}

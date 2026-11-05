@@ -58,3 +58,16 @@ describe('toRequestBody', () => {
     expect(toRequestBody(filled({ defaultCost: '400' }), 'edit').default_cost).toBe('400.00')
   })
 })
+
+describe('design code', () => {
+  it('rejects anything but letters and digits', () => {
+    expect(validateForm(filled({ designCode: 'MP#4952' })).designCode).toBeTruthy()
+    expect(validateForm(filled({ designCode: 'mp 4952' }))).toEqual({})
+  })
+
+  it('is sent normalised, and as null when cleared while editing', () => {
+    expect(toRequestBody(filled({ designCode: 'mp 4952' }), 'create').design_code).toBe('MP4952')
+    expect('design_code' in toRequestBody(filled({ designCode: '' }), 'create')).toBe(false)
+    expect(toRequestBody(filled({ designCode: '' }), 'edit').design_code).toBeNull()
+  })
+})

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT p.id, p.name, pi.normalized_value AS \"code?\", pi.base_code AS \"base_code?\",\n                  pi.variant AS \"variant?\", p.selling_price, p.mrp, p.unit,\n                  p.category_id, c.name AS \"category_name?\",\n                  p.archived_at IS NOT NULL AS \"archived!\", h.stage AS \"stage?\"\n           FROM products p\n           LEFT JOIN catalog_search_hits($1, $2) h ON h.product_id = p.id\n           LEFT JOIN categories c ON c.id = p.category_id\n           LEFT JOIN product_identifiers pi ON pi.product_id = p.id AND pi.identifier_type = 'product_code'\n           WHERE (NOT $3 OR h.stage IS NOT NULL)\n             AND ($4 = 'all' OR ($4 = 'active') = (p.archived_at IS NULL))\n             AND ($5::uuid IS NULL OR p.category_id = $5)\n             AND ($6::uuid IS NULL OR p.brand_id = $6)\n           ORDER BY\n             CASE WHEN $7 = 'rank' THEN h.stage END,\n             CASE WHEN $7 IN ('rank', 'code') THEN pi.base_code END,\n             CASE WHEN $7 IN ('rank', 'code') THEN pi.variant_num END NULLS FIRST,\n             CASE WHEN $7 = 'updated' THEN p.updated_at END DESC,\n             lower(p.name), pi.base_code, pi.variant_num NULLS FIRST, pi.variant, p.id\n           LIMIT $8 OFFSET $9",
+  "query": "SELECT p.id, p.name, pi.normalized_value AS \"code?\", pi.base_code AS \"base_code?\",\n                  pi.variant AS \"variant?\", pi.design_code AS \"design_code?\", p.selling_price, p.mrp, p.unit,\n                  p.category_id, c.name AS \"category_name?\",\n                  p.archived_at IS NOT NULL AS \"archived!\", h.stage AS \"stage?\"\n           FROM catalog_search_hits($1, $2) h\n           JOIN products p ON p.id = h.product_id\n           LEFT JOIN categories c ON c.id = p.category_id\n           LEFT JOIN product_identifiers pi ON pi.product_id = p.id AND pi.identifier_type = 'product_code'\n           WHERE p.archived_at IS NULL\n           ORDER BY h.stage, pi.base_code, pi.variant_num NULLS FIRST, pi.variant, pi.design_code NULLS FIRST,\n                    lower(p.name), p.id\n           LIMIT $3",
   "describe": {
     "columns": [
       {
@@ -60,6 +60,17 @@
       },
       {
         "ordinal": 5,
+        "name": "design_code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "design_code"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
         "name": "selling_price",
         "type_info": "Numeric",
         "origin": {
@@ -70,7 +81,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "mrp",
         "type_info": "Numeric",
         "origin": {
@@ -81,7 +92,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "unit",
         "type_info": "Text",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "category_id",
         "type_info": "Uuid",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "category_name?",
         "type_info": "Text",
         "origin": {
@@ -114,13 +125,13 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "archived!",
         "type_info": "Bool",
         "origin": "Expression"
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "stage?",
         "type_info": "Int4",
         "origin": "Expression"
@@ -130,12 +141,6 @@
       "Left": [
         "Text",
         "Text",
-        "Bool",
-        "Text",
-        "Uuid",
-        "Uuid",
-        "Text",
-        "Int8",
         "Int8"
       ]
     },
@@ -143,6 +148,7 @@
       false,
       false,
       false,
+      true,
       true,
       true,
       false,
@@ -154,5 +160,5 @@
       null
     ]
   },
-  "hash": "524286ce81a3373e326e59c53714690319093127cc6dda1692d0e489d84265a7"
+  "hash": "b0fe5b6a6347fd05bfd1d6ee0d604a76553db0cfdc0eaf3f9a848d8c402af2c9"
 }

@@ -194,6 +194,7 @@ const isFiltered = computed(() => !!params.value.q || !!params.value.categoryId 
             </RouterLink>
             <p class="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-muted">
               <span class="figure text-base font-bold tracking-normal text-ink">{{ p.code ?? 'No code' }}</span>
+              <Badge v-if="p.design_code" tone="clay">{{ p.design_code }}</Badge>
               <Badge v-if="p.archived" tone="neutral">Archived</Badge>
             </p>
           </td>

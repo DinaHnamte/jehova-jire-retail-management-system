@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT p.id, p.name, p.archived_at IS NOT NULL AS \"archived!\"\n         FROM product_identifiers pi JOIN products p ON p.id = pi.product_id\n         WHERE pi.brand_id = $1 AND pi.identifier_type = $2 AND pi.normalized_value = $3",
+  "query": "SELECT p.id, p.name, p.archived_at IS NOT NULL AS \"archived!\"\n         FROM product_identifiers pi JOIN products p ON p.id = pi.product_id\n         WHERE pi.brand_id = $1 AND pi.identifier_type = $2 AND pi.normalized_value = $3\n           AND pi.design_code IS NOT DISTINCT FROM $4",
   "describe": {
     "columns": [
       {
@@ -36,6 +36,7 @@
       "Left": [
         "Uuid",
         "Text",
+        "Text",
         "Text"
       ]
     },
@@ -45,5 +46,5 @@
       null
     ]
   },
-  "hash": "46a6ac127bd47584c4df2ffa8fd2c8a3295ec9f472fbcb1686ec5d7b0c8649e4"
+  "hash": "9063a3fb814bd628a294b3e7df335d77149fc51a8510c1f9f77d9efd19b0863d"
 }

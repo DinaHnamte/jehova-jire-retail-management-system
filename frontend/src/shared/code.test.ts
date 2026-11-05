@@ -23,3 +23,17 @@ describe('normalizeQuery', () => {
     expect(normalizeQuery('   ')).toBe('')
   })
 })
+
+import designs from '../../../fixtures/designs.json'
+import { normalizeDesign } from './code'
+
+describe('normalizeDesign (shared fixtures)', () => {
+  for (const c of designs as { raw: string; design: string | null; blank?: boolean }[]) {
+    it(`handles ${JSON.stringify(c.raw)}`, () => {
+      const got = normalizeDesign(c.raw)
+      if (c.design) expect(got).toEqual({ ok: true, design: c.design })
+      else if (c.blank) expect(got).toEqual({ ok: true, design: null })
+      else expect(got.ok).toBe(false)
+    })
+  }
+})

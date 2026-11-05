@@ -38,3 +38,19 @@ fn normalize_query_never_fails() {
     );
     assert_eq!(normalize_query("   "), "");
 }
+
+#[test]
+fn design_codes_match_shared_fixtures() {
+    use jj_retail_api::shared::code::normalize_design;
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/designs.json");
+    let cases: Vec<Value> = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    for c in cases {
+        let raw = c["raw"].as_str().unwrap();
+        let got = normalize_design(raw);
+        match (c["design"].as_str(), c["blank"].as_bool().unwrap_or(false)) {
+            (Some(d), _) => assert_eq!(got, Ok(Some(d.to_string())), "{raw:?}"),
+            (None, true) => assert_eq!(got, Ok(None), "{raw:?} is blank"),
+            (None, false) => assert!(got.is_err(), "{raw:?} should be rejected, got {got:?}"),
+        }
+    }
+}

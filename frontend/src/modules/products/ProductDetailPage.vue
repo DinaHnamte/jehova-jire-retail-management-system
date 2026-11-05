@@ -70,6 +70,7 @@ const add = () =>
         <h1 class="text-3xl font-extrabold">{{ product.name }}</h1>
         <p class="mt-1 flex flex-wrap items-center gap-2">
           <span class="figure text-2xl">{{ product.code ?? 'No code' }}</span>
+          <Badge v-if="product.design_code" tone="clay">Design {{ product.design_code }}</Badge>
           <Badge v-if="product.archived" tone="neutral" dot>Archived</Badge>
         </p>
       </div>

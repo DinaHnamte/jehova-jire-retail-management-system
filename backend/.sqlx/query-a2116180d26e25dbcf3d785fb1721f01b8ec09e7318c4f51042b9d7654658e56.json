@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT brand_id, identifier_type, normalized_value FROM product_identifiers",
+  "query": "SELECT brand_id, identifier_type, normalized_value, design_code FROM product_identifiers",
   "describe": {
     "columns": [
       {
@@ -35,6 +35,17 @@
             "name": "normalized_value"
           }
         }
+      },
+      {
+        "ordinal": 3,
+        "name": "design_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "design_code"
+          }
+        }
       }
     ],
     "parameters": {
@@ -43,8 +54,9 @@
     "nullable": [
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "27ef254f887ec889f2be891bac11659f40dc87491bef9e9189efa770fd97efe4"
+  "hash": "a2116180d26e25dbcf3d785fb1721f01b8ec09e7318c4f51042b9d7654658e56"
 }

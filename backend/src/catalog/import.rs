@@ -21,6 +21,7 @@ pub const MAX_BYTES: usize = 1024 * 1024;
 pub const MAX_ROWS: usize = 2000;
 const REQUIRED: &[&str] = &["code", "name", "selling_price"];
 const OPTIONAL: &[&str] = &[
+    "design_code",
     "mrp",
     "cost",
     "unit",
@@ -42,6 +43,7 @@ pub struct ImportRow {
     /// Spreadsheet row number: the header is row 1.
     pub row: usize,
     pub code: Option<String>,
+    pub design_code: Option<String>,
     pub name: String,
     pub status: &'static str,
     /// Why a row is skipped.
@@ -163,7 +165,7 @@ pub async fn import(
         .into_iter()
         .map(|c| (c.name.to_lowercase(), c.id))
         .collect();
-    let mut taken: HashSet<(Uuid, String, String)> = repo::all_identifier_keys(&mut conn)
+    let mut taken: HashSet<repo::IdentityKey> = repo::all_identifier_keys(&mut conn)
         .await?
         .into_iter()
         .collect();
@@ -172,7 +174,7 @@ pub async fn import(
     let mut rows = Vec::new();
     let mut planned = Vec::new();
     // Codes planned earlier in this file → the row they're on.
-    let mut in_file: HashMap<(Uuid, String), usize> = HashMap::new();
+    let mut in_file: HashMap<(Uuid, String, Option<String>), usize> = HashMap::new();
     let mut new_categories: BTreeMap<String, String> = BTreeMap::new();
     let (mut created, mut skipped) = (0, 0);
 
@@ -193,6 +195,7 @@ pub async fn import(
             mrp: get("mrp"),
             default_cost: get("cost"),
             description: get("description"),
+            design_code: get("design_code"),
             ..Default::default()
         };
         let product = validate_product(&draft)
@@ -219,11 +222,13 @@ pub async fn import(
             }),
         };
         let code = product.as_ref().map(|p| p.code.normalized.clone());
+        let design = product.as_ref().and_then(|p| p.design_code.clone());
 
         let (Some(product), Some(brand_id)) = (product, brand_id) else {
             rows.push(ImportRow {
                 row: row_no,
                 code,
+                design_code: design.clone(),
                 name,
                 status: "error",
                 note: None,
@@ -235,16 +240,19 @@ pub async fn import(
             brand_id,
             "product_code".to_string(),
             product.code.normalized.clone(),
+            design.clone(),
         );
+        let file_key = (brand_id, product.code.normalized.clone(), design.clone());
         if taken.contains(&code_key) {
             skipped += 1;
-            let note = match in_file.get(&(brand_id, product.code.normalized.clone())) {
+            let note = match in_file.get(&file_key) {
                 Some(first) => format!("Same code as row {first}."),
                 None => "Already in the catalogue.".to_string(),
             };
             rows.push(ImportRow {
                 row: row_no,
                 code,
+                design_code: design.clone(),
                 name,
                 status: "skip",
                 note: Some(note),
@@ -261,7 +269,7 @@ pub async fn import(
             .filter(|a| !a.is_empty())
         {
             let norm = normalize_query(raw);
-            let key = (brand_id, "alias".to_string(), norm.clone());
+            let key = (brand_id, "alias".to_string(), norm.clone(), None);
             if norm.is_empty() || raw.chars().count() > MAX_ALIAS {
                 errors.push(RowError {
                     field: "aliases".into(),
@@ -280,6 +288,7 @@ pub async fn import(
             rows.push(ImportRow {
                 row: row_no,
                 code,
+                design_code: design.clone(),
                 name,
                 status: "error",
                 note: None,
@@ -296,14 +305,15 @@ pub async fn import(
             key
         });
         taken.insert(code_key);
-        in_file.insert((brand_id, product.code.normalized.clone()), row_no);
+        in_file.insert(file_key, row_no);
         for (_, norm) in &aliases {
-            taken.insert((brand_id, "alias".to_string(), norm.clone()));
+            taken.insert((brand_id, "alias".to_string(), norm.clone(), None));
         }
         created += 1;
         rows.push(ImportRow {
             row: row_no,
             code,
+            design_code: design.clone(),
             name,
             status: "create",
             note: None,
@@ -358,6 +368,7 @@ pub async fn import(
             p.brand_id,
             &p.product.raw_code,
             &p.product.code,
+            p.product.design_code.as_deref(),
         )
         .await
         .map_err(conflict)?;

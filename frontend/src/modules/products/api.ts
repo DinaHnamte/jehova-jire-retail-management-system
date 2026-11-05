@@ -13,6 +13,8 @@ export interface ProductSummary {
   code: string | null
   base_code: string | null
   variant: string | null
+  /** Design/colour code, e.g. MP4952; each design is its own product. */
+  design_code: string | null
   selling_price: string
   mrp: string | null
   unit: string
@@ -54,6 +56,7 @@ export interface Page<T> {
 export interface ProductBody {
   name?: string
   code?: string
+  design_code?: string | null
   category_id?: string | null
   description?: string | null
   unit?: string
@@ -67,6 +70,7 @@ export interface ProductBody {
 export interface ImportRow {
   row: number
   code: string | null
+  design_code: string | null
   name: string
   status: 'create' | 'skip' | 'error'
   /** Why a row is skipped. */

@@ -26,6 +26,7 @@ pub struct ProductSummary {
     pub code: Option<String>,
     pub base_code: Option<String>,
     pub variant: Option<String>,
+    pub design_code: Option<String>,
     pub selling_price: Decimal,
     pub mrp: Option<Decimal>,
     pub unit: String,
@@ -107,6 +108,7 @@ struct Row {
     code: Option<String>,
     base_code: Option<String>,
     variant: Option<String>,
+    design_code: Option<String>,
     selling_price: Decimal,
     mrp: Option<Decimal>,
     unit: String,
@@ -125,6 +127,7 @@ impl Row {
                 code: self.code,
                 base_code: self.base_code,
                 variant: self.variant,
+                design_code: self.design_code,
                 selling_price: self.selling_price,
                 mrp: self.mrp,
                 unit: self.unit,
@@ -151,7 +154,7 @@ pub async fn search(db: &PgPool, p: SearchParams) -> AppResult<SearchResponse> {
     let rows = sqlx::query_as!(
         Row,
         r#"SELECT p.id, p.name, pi.normalized_value AS "code?", pi.base_code AS "base_code?",
-                  pi.variant AS "variant?", p.selling_price, p.mrp, p.unit,
+                  pi.variant AS "variant?", pi.design_code AS "design_code?", p.selling_price, p.mrp, p.unit,
                   p.category_id, c.name AS "category_name?",
                   p.archived_at IS NOT NULL AS "archived!", h.stage AS "stage?"
            FROM catalog_search_hits($1, $2) h
@@ -159,7 +162,8 @@ pub async fn search(db: &PgPool, p: SearchParams) -> AppResult<SearchResponse> {
            LEFT JOIN categories c ON c.id = p.category_id
            LEFT JOIN product_identifiers pi ON pi.product_id = p.id AND pi.identifier_type = 'product_code'
            WHERE p.archived_at IS NULL
-           ORDER BY h.stage, pi.base_code, pi.variant_num NULLS FIRST, pi.variant, lower(p.name), p.id
+           ORDER BY h.stage, pi.base_code, pi.variant_num NULLS FIRST, pi.variant, pi.design_code NULLS FIRST,
+                    lower(p.name), p.id
            LIMIT $3"#,
         raw,
         norm,
@@ -222,7 +226,7 @@ pub async fn list(db: &PgPool, p: ListParams) -> AppResult<Page<ProductSummary>>
     let rows = sqlx::query_as!(
         Row,
         r#"SELECT p.id, p.name, pi.normalized_value AS "code?", pi.base_code AS "base_code?",
-                  pi.variant AS "variant?", p.selling_price, p.mrp, p.unit,
+                  pi.variant AS "variant?", pi.design_code AS "design_code?", p.selling_price, p.mrp, p.unit,
                   p.category_id, c.name AS "category_name?",
                   p.archived_at IS NOT NULL AS "archived!", h.stage AS "stage?"
            FROM products p
@@ -237,8 +241,9 @@ pub async fn list(db: &PgPool, p: ListParams) -> AppResult<Page<ProductSummary>>
              CASE WHEN $7 = 'rank' THEN h.stage END,
              CASE WHEN $7 IN ('rank', 'code') THEN pi.base_code END,
              CASE WHEN $7 IN ('rank', 'code') THEN pi.variant_num END NULLS FIRST,
+             CASE WHEN $7 IN ('rank', 'code') THEN pi.design_code END NULLS FIRST,
              CASE WHEN $7 = 'updated' THEN p.updated_at END DESC,
-             lower(p.name), pi.base_code, pi.variant_num NULLS FIRST, pi.variant, p.id
+             lower(p.name), pi.base_code, pi.variant_num NULLS FIRST, pi.variant, pi.design_code NULLS FIRST, p.id
            LIMIT $8 OFFSET $9"#,
         raw,
         norm,

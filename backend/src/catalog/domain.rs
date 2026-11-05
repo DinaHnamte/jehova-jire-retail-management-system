@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::{
     error::AppError,
     shared::{
-        code::{ProductCode, normalize_code},
+        code::{MAX_DESIGN, ProductCode, normalize_code, normalize_design},
         money::{format_rupees, parse_money},
     },
 };
@@ -56,6 +56,8 @@ pub struct ProductDraft {
     pub mrp: Option<String>,
     pub default_cost: Option<String>,
     pub hsn_code: Option<String>,
+    /// Design/colour code from the label, e.g. `MP4952`; part of the product's identity.
+    pub design_code: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +74,8 @@ pub struct ValidProduct {
     pub mrp: Option<Decimal>,
     pub default_cost: Option<Decimal>,
     pub hsn_code: Option<String>,
+    /// Design/colour code from the label, e.g. `MP4952`; part of the product's identity.
+    pub design_code: Option<String>,
 }
 
 /// Trimmed text, or `None` when blank.
@@ -158,6 +162,14 @@ pub fn validate_product(d: &ProductDraft) -> Result<ValidProduct, FieldError> {
     {
         return Err(FieldError::new("hsn_code", "HSN code is too long."));
     }
+    let design_code = normalize_design(d.design_code.as_deref().unwrap_or("")).map_err(|_| {
+        FieldError::new(
+            "design_code",
+            format!(
+                "Design code is letters and digits only (up to {MAX_DESIGN}), for example MP4952."
+            ),
+        )
+    })?;
     Ok(ValidProduct {
         name,
         raw_code,
@@ -171,6 +183,7 @@ pub fn validate_product(d: &ProductDraft) -> Result<ValidProduct, FieldError> {
         mrp,
         default_cost,
         hsn_code,
+        design_code,
     })
 }
 
@@ -204,6 +217,7 @@ impl ValidProduct {
             "mrp": money(&self.mrp),
             "default_cost": money(&self.default_cost),
             "hsn_code": self.hsn_code,
+            "design_code": self.design_code,
         }) else {
             unreachable!()
         };

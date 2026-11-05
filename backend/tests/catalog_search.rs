@@ -362,3 +362,64 @@ async fn same_name_lists_sizes_in_order(pool: PgPool) {
         .collect();
     assert_eq!(got, ["IP1060-9", "IP1060-11", "IP1060-12"]);
 }
+
+#[sqlx::test]
+async fn designs_group_under_their_model(pool: PgPool) {
+    let c = ctx(pool).await;
+    for (code, design) in [
+        ("IP 1060-11", Some("MP4952")),
+        ("IP 1060-11", Some("MG4705")),
+        ("IP 1060-9", None),
+    ] {
+        let mut body = json!({"name": "4 Section Plate", "code": code, "selling_price": "100"});
+        if let Some(d) = design {
+            body["design_code"] = json!(d);
+        }
+        let r =
+            c.a.post_json("/api/v1/products", body, Some(&c.s.cookie), Some(&c.s.csrf))
+                .await;
+        assert_eq!(r.status(), 201);
+    }
+    let results = |v: Value| -> Vec<(String, String, String)> {
+        v["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| {
+                (
+                    r["code"].as_str().unwrap().to_string(),
+                    r["design_code"].as_str().unwrap_or("").to_string(),
+                    r["match"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect()
+    };
+    let r = results(c.get("/api/v1/products/search?q=1060").await);
+    let got: Vec<(&str, &str)> = r.iter().map(|(c, d, _)| (c.as_str(), d.as_str())).collect();
+    assert_eq!(
+        got,
+        [
+            ("IP1060-9", ""),
+            ("IP1060-11", "MG4705"),
+            ("IP1060-11", "MP4952")
+        ]
+    );
+    // the exact model code finds both designs
+    let r = results(c.get("/api/v1/products/search?q=IP1060-11").await);
+    assert_eq!(r.len(), 2);
+    assert!(r.iter().all(|(_, _, m)| m == "exact"));
+    // the design code alone finds that one product
+    let r = results(c.get("/api/v1/products/search?q=mp4952").await);
+    assert_eq!(
+        r,
+        [(
+            "IP1060-11".to_string(),
+            "MP4952".to_string(),
+            "exact".to_string()
+        )]
+    );
+    // and the list shows the design too
+    let p = c.get("/api/v1/products?q=1060").await;
+    assert_eq!(p["total"], 3);
+    assert_eq!(p["items"][1]["design_code"], "MG4705");
+}

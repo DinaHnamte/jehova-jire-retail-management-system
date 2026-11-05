@@ -34,10 +34,14 @@ The printed product code is the main way products are identified.
 - Lookups from OCR text also try common OCR misreadings (`O/0`, `I/1`,
   `S/5`, `B/8`) and only ever suggest matches; a person confirms.
 - The `barcode` identifier type is kept for future suppliers.
-- **The model code alone identifies a product.** Designs and colours
-  (`MP4952`, `MG4705`, `Retro Daisy`) are not tracked: every design of
-  a model is one product with one stock count. The parser recognises a
-  design code so it is never mistaken for the model code, then drops it.
+- **A product is its model code plus its design code** (revised
+  5 November 2026; the first version ignored designs). `IP 1060-11"`
+  in `MP4952` (pink) and in `MG4705` (green) are two products with their
+  own stock and price. Labels without a design code (`B 6143-8`) are one
+  product as before. Design codes are letters and digits (normalised
+  like codes: `mp 4952` → `MP4952`). Search by model code shows every
+  design together; typing a design code finds that one product. Design
+  *names* such as `Retro Daisy` stay in the product name.
 - Either label type can be scanned. When a price label is read, its
   MRP pre-fills a new product, and in find mode it is compared with
   the saved MRP; a difference is shown as a warning (old stock or a
@@ -55,7 +59,7 @@ The printed product code is the main way products are identified.
 - The normaliser and search are core. They get the most tests and run
   against a real label photo corpus.
 - POS is designed keyboard-first, with recent and best-selling items.
-- Stock can't say how many of each colour are left. Revisit if
-  customers often ask for a particular design; designs would become
-  product variants.
+- Stock is counted per design, so the shop knows how many pink and
+  green plates are left; staff must pick the right design when adding
+  or selling, and the scanner reads the design code from the label.
 - Revisit if checkout speed becomes a complaint.

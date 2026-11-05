@@ -239,3 +239,18 @@ async fn skipped_rows_say_why(pool: PgPool) {
     assert_eq!(rep["rows"][2]["note"], "Same code as row 3.");
     assert_eq!(rep["rows"][1]["note"], Value::Null);
 }
+
+#[sqlx::test]
+async fn import_reads_design_codes(pool: PgPool) {
+    let (a, s) = setup(pool, "stock_operator").await;
+    let csv = "code,design_code,name,selling_price\n\
+IP 1060-11,MP4952,4 Section Plate,700\n\
+IP 1060-11,MG4705,4 Section Plate,700\n\
+IP 1060-11,mp 4952,4 Section Plate again,700\n\
+IP 1060-11,MP#49,Bad design,700\n";
+    let rep = import(&a, &s, csv, true).await.json();
+    assert_eq!(statuses(&rep), ["create", "create", "skip", "error"]);
+    assert_eq!(rep["rows"][2]["note"], "Same code as row 2.");
+    assert_eq!(rep["rows"][3]["errors"][0]["field"], "design_code");
+    assert_eq!(rep["rows"][0]["design_code"], "MP4952");
+}

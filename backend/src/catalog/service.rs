@@ -79,9 +79,12 @@ async fn duplicate_error(
     brand_id: Uuid,
     identifier_type: &str,
     normalized: &str,
+    design: Option<&str>,
 ) -> AppError {
     let owner = match db.acquire().await {
-        Ok(mut c) => repo::identifier_owner(&mut c, brand_id, identifier_type, normalized).await,
+        Ok(mut c) => {
+            repo::identifier_owner(&mut c, brand_id, identifier_type, normalized, design).await
+        }
         Err(e) => Err(e.into()),
     };
     match owner {
@@ -92,8 +95,12 @@ async fn duplicate_error(
                 "That code"
             };
             let suffix = if archived { " (archived)" } else { "" };
+            let shown = match design {
+                Some(d) => format!("{normalized} in design {d}"),
+                None => normalized.to_string(),
+            };
             AppError::Duplicate {
-                message: format!("{what} {normalized} is already used by {name}{suffix}."),
+                message: format!("{what} {shown} is already used by {name}{suffix}."),
                 details: json!({ "product_id": product_id, "name": name, "archived": archived }),
             }
         }
@@ -130,6 +137,7 @@ fn to_out(row: ProductRow, identifiers: Vec<IdentifierOut>, can_see_cost: bool) 
         code: row.code,
         base_code: row.base_code,
         variant: row.variant,
+        design_code: row.design_code,
         unit: row.unit,
         pack_qty: row.pack_qty,
         attributes: row.attributes,
@@ -166,6 +174,7 @@ pub async fn create_product(db: &PgPool, actor: Uuid, req: CreateProduct) -> App
         mrp: req.mrp,
         default_cost: req.default_cost,
         hsn_code: req.hsn_code,
+        design_code: req.design_code,
     };
     let p = validate_product(&draft)?;
     let brand_id = req.brand_id.unwrap_or(EKTRA_BRAND_ID);
@@ -180,10 +189,26 @@ pub async fn create_product(db: &PgPool, actor: Uuid, req: CreateProduct) -> App
     check_category(&mut tx, p.category_id).await?;
     let id = new_id();
     repo::insert_product(&mut tx, id, brand_id, &p, actor).await?;
-    if let Err(e) = repo::upsert_code(&mut tx, id, brand_id, &p.raw_code, &p.code).await {
+    if let Err(e) = repo::upsert_code(
+        &mut tx,
+        id,
+        brand_id,
+        &p.raw_code,
+        &p.code,
+        p.design_code.as_deref(),
+    )
+    .await
+    {
         drop(tx);
         return Err(if is_unique_violation(&e) {
-            duplicate_error(db, brand_id, "product_code", &p.code.normalized).await
+            duplicate_error(
+                db,
+                brand_id,
+                "product_code",
+                &p.code.normalized,
+                p.design_code.as_deref(),
+            )
+            .await
         } else {
             e.into()
         });
@@ -253,17 +278,36 @@ pub async fn update_product(
     if let Some(v) = patch.hsn_code {
         d.hsn_code = v;
     }
+    if let Some(v) = patch.design_code {
+        d.design_code = v;
+    }
     let p = validate_product(&d)?;
     check_category(&mut tx, p.category_id).await?;
 
     let code_changed = row.code.as_deref() != Some(p.code.normalized.as_str())
-        || row.code_raw.as_deref() != Some(p.raw_code.as_str());
+        || row.code_raw.as_deref() != Some(p.raw_code.as_str())
+        || row.design_code != p.design_code;
     if code_changed
-        && let Err(e) = repo::upsert_code(&mut tx, id, row.brand_id, &p.raw_code, &p.code).await
+        && let Err(e) = repo::upsert_code(
+            &mut tx,
+            id,
+            row.brand_id,
+            &p.raw_code,
+            &p.code,
+            p.design_code.as_deref(),
+        )
+        .await
     {
         drop(tx);
         return Err(if is_unique_violation(&e) {
-            duplicate_error(db, row.brand_id, "product_code", &p.code.normalized).await
+            duplicate_error(
+                db,
+                row.brand_id,
+                "product_code",
+                &p.code.normalized,
+                p.design_code.as_deref(),
+            )
+            .await
         } else {
             e.into()
         });
@@ -347,7 +391,7 @@ pub async fn add_identifier(
     {
         drop(tx);
         return Err(if is_unique_violation(&e) {
-            duplicate_error(db, row.brand_id, t, &normalized).await
+            duplicate_error(db, row.brand_id, t, &normalized, None).await
         } else {
             e.into()
         });

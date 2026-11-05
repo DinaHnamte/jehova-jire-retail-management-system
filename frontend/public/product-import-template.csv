@@ -1,3 +1,4 @@
-code,name,selling_price,mrp,cost,unit,category,brand,description,aliases
-"IP 1060-11""",4 Section Plate,700,750,,piece,Plates,,,thali
-"IB 1290-7.8""",Easy Lunch W/Plastic Lid,735,735,,piece,Lunch boxes,,,
+code,design_code,name,selling_price,mrp,cost,unit,category,brand,description,aliases
+"IP 1060-11""",MP4952,4 Section Plate,700,750,,piece,Plates,,,thali
+"IP 1060-11""",MG4705,4 Section Plate,700,750,,piece,Plates,,,
+"IB 1290-7.8""",,Easy Lunch W/Plastic Lid,735,735,,piece,Lunch boxes,,,

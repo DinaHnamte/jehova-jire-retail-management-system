@@ -44,3 +44,13 @@ export function normalizeCode(raw: string): ProductCode | null {
     digits: normalized.replace(/^\p{L}+/u, ''),
   }
 }
+
+export const MAX_DESIGN = 20
+
+/** Normalise a design/colour code such as `MP4952`. Blank → `design: null`. */
+export function normalizeDesign(raw: string): { ok: true; design: string | null } | { ok: false } {
+  const s = normalizeQuery(raw)
+  if (!s) return { ok: true, design: null }
+  if (s.length > MAX_DESIGN || !/^[A-Z0-9]+$/.test(s)) return { ok: false }
+  return { ok: true, design: s }
+}

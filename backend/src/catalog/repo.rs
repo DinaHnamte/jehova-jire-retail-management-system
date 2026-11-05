@@ -83,6 +83,7 @@ pub struct ProductRow {
     pub code: Option<String>,
     pub base_code: Option<String>,
     pub variant: Option<String>,
+    pub design_code: Option<String>,
 }
 
 impl ProductRow {
@@ -100,6 +101,7 @@ impl ProductRow {
             mrp: self.mrp.map(|d| d.to_string()),
             default_cost: self.default_cost.map(|d| d.to_string()),
             hsn_code: self.hsn_code.clone(),
+            design_code: self.design_code.clone(),
         }
     }
 }
@@ -117,7 +119,7 @@ pub async fn get_product(
                       p.name, p.description, p.unit, p.pack_qty, p.attributes, p.selling_price, p.mrp,
                       p.default_cost, p.hsn_code, p.archived_at, p.created_at, p.updated_at,
                       pi.raw_value AS "code_raw?", pi.normalized_value AS "code?",
-                      pi.base_code AS "base_code?", pi.variant AS "variant?"
+                      pi.base_code AS "base_code?", pi.variant AS "variant?", pi.design_code AS "design_code?"
                FROM products p
                JOIN brands b ON b.id = p.brand_id
                LEFT JOIN categories c ON c.id = p.category_id
@@ -135,7 +137,7 @@ pub async fn get_product(
                       p.name, p.description, p.unit, p.pack_qty, p.attributes, p.selling_price, p.mrp,
                       p.default_cost, p.hsn_code, p.archived_at, p.created_at, p.updated_at,
                       pi.raw_value AS "code_raw?", pi.normalized_value AS "code?",
-                      pi.base_code AS "base_code?", pi.variant AS "variant?"
+                      pi.base_code AS "base_code?", pi.variant AS "variant?", pi.design_code AS "design_code?"
                FROM products p
                JOIN brands b ON b.id = p.brand_id
                LEFT JOIN categories c ON c.id = p.category_id
@@ -246,11 +248,13 @@ pub async fn upsert_code(
     brand_id: Uuid,
     raw: &str,
     code: &ProductCode,
+    design: Option<&str>,
 ) -> Result<(), sqlx::Error> {
     let num = variant_num(code.variant.as_deref());
     let updated = sqlx::query!(
         "UPDATE product_identifiers
-         SET raw_value = $3, normalized_value = $4, base_code = $5, variant = $6, variant_num = $7, digits = $8
+         SET raw_value = $3, normalized_value = $4, base_code = $5, variant = $6, variant_num = $7, digits = $8,
+             design_code = $9
          WHERE product_id = $1 AND brand_id = $2 AND identifier_type = 'product_code'",
         product_id,
         brand_id,
@@ -259,7 +263,8 @@ pub async fn upsert_code(
         code.base,
         code.variant,
         num,
-        code.digits
+        code.digits,
+        design
     )
     .execute(&mut *conn)
     .await?
@@ -267,8 +272,9 @@ pub async fn upsert_code(
     if updated == 0 {
         sqlx::query!(
             "INSERT INTO product_identifiers
-               (id, product_id, brand_id, identifier_type, raw_value, normalized_value, base_code, variant, variant_num, digits)
-             VALUES ($1, $2, $3, 'product_code', $4, $5, $6, $7, $8, $9)",
+               (id, product_id, brand_id, identifier_type, raw_value, normalized_value, base_code, variant, variant_num,
+                digits, design_code)
+             VALUES ($1, $2, $3, 'product_code', $4, $5, $6, $7, $8, $9, $10)",
             crate::shared::ids::new_id(),
             product_id,
             brand_id,
@@ -277,7 +283,8 @@ pub async fn upsert_code(
             code.base,
             code.variant,
             num,
-            code.digits
+            code.digits,
+            design
         )
         .execute(conn)
         .await?;
@@ -337,14 +344,17 @@ pub async fn identifier_owner(
     brand_id: Uuid,
     identifier_type: &str,
     normalized: &str,
+    design: Option<&str>,
 ) -> AppResult<Option<(Uuid, String, bool)>> {
     Ok(sqlx::query!(
         "SELECT p.id, p.name, p.archived_at IS NOT NULL AS \"archived!\"
          FROM product_identifiers pi JOIN products p ON p.id = pi.product_id
-         WHERE pi.brand_id = $1 AND pi.identifier_type = $2 AND pi.normalized_value = $3",
+         WHERE pi.brand_id = $1 AND pi.identifier_type = $2 AND pi.normalized_value = $3
+           AND pi.design_code IS NOT DISTINCT FROM $4",
         brand_id,
         identifier_type,
-        normalized
+        normalized,
+        design
     )
     .fetch_optional(conn)
     .await?
@@ -373,16 +383,25 @@ pub async fn set_archived(conn: &mut PgConnection, id: Uuid, archived: bool) -> 
     Ok(n > 0)
 }
 
-/// Every identifier as `(brand_id, type, normalized_value)`, for import duplicate checks.
-pub async fn all_identifier_keys(
-    conn: &mut PgConnection,
-) -> AppResult<Vec<(Uuid, String, String)>> {
-    Ok(
-        sqlx::query!("SELECT brand_id, identifier_type, normalized_value FROM product_identifiers")
-            .fetch_all(conn)
-            .await?
-            .into_iter()
-            .map(|r| (r.brand_id, r.identifier_type, r.normalized_value))
-            .collect(),
+/// Every identifier as `(brand_id, type, normalized_value, design_code)`, for import
+/// duplicate checks.
+pub async fn all_identifier_keys(conn: &mut PgConnection) -> AppResult<Vec<IdentityKey>> {
+    Ok(sqlx::query!(
+        "SELECT brand_id, identifier_type, normalized_value, design_code FROM product_identifiers"
     )
+    .fetch_all(conn)
+    .await?
+    .into_iter()
+    .map(|r| {
+        (
+            r.brand_id,
+            r.identifier_type,
+            r.normalized_value,
+            r.design_code,
+        )
+    })
+    .collect())
 }
+
+/// What makes an identifier unique: brand, type, normalised value and design.
+pub type IdentityKey = (Uuid, String, String, Option<String>);

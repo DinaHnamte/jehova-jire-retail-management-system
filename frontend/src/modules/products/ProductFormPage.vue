@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '@/modules/auth/session.store'
 import { ApiError, friendlyMessage } from '@/shared/api/errors'
@@ -65,7 +65,7 @@ async function save() {
   formError.value = null
   duplicateOf.value = null
   errors.value = validateForm(form)
-  if (Object.keys(errors.value).length) return
+  if (Object.keys(errors.value).length) return focusFirstError()
   saving.value = true
   try {
     const body = toRequestBody(form, editing.value ? 'edit' : 'create', { includeCost: canSeeCost.value })
@@ -85,6 +85,34 @@ async function save() {
     }
   } finally {
     saving.value = false
+  }
+  if (Object.keys(errors.value).length || formError.value) await focusFirstError()
+}
+
+// Input ids for each form field, so a problem can be brought into view.
+const INPUT_IDS: Record<keyof FormErrors, string> = {
+  name: 'name',
+  code: 'code',
+  designCode: 'design',
+  categoryId: 'category',
+  unit: 'unit',
+  packQty: 'pack',
+  sellingPrice: 'price',
+  mrp: 'mrp',
+  defaultCost: 'cost',
+  description: 'description',
+  hsnCode: 'hsn',
+}
+
+/** Move focus (and the screen) to the first field with a problem. */
+async function focusFirstError() {
+  await nextTick()
+  const order = Object.keys(INPUT_IDS) as (keyof FormErrors)[]
+  const first = order.find((k) => errors.value[k])
+  const el = first ? document.getElementById(INPUT_IDS[first]) : document.querySelector('[role=alert]')
+  if (el instanceof HTMLElement) {
+    el.focus({ preventScroll: true })
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }
 }
 
@@ -122,8 +150,26 @@ const fieldClass = (k: keyof FormErrors) => (errors.value[k] ? 'field mt-1.5 !bo
             {{ errors.code }}
             <RouterLink v-if="duplicateOf" :to="`/products/${duplicateOf.id}`" class="link">Open {{ duplicateOf.name }}</RouterLink>
           </template>
-          <template v-else-if="preview">Saved as <strong class="text-ink">{{ preview.normalized }}</strong>. Leave out colour codes like MP4952.</template>
-          <template v-else>As printed on the box. Leave out colour codes like MP4952.</template>
+          <template v-else-if="preview">Saved as <strong class="text-ink">{{ preview.normalized }}</strong>.</template>
+          <template v-else>As printed on the box, without the design code.</template>
+        </p>
+      </div>
+      <div>
+        <label for="design" class="block font-semibold">Design code <span class="font-normal text-muted">(optional)</span></label>
+        <input
+          id="design"
+          v-model="form.designCode"
+          :class="fieldClass('designCode')"
+          class="font-semibold sm:w-1/2"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          placeholder="MP4952"
+          :aria-invalid="!!errors.designCode"
+          aria-describedby="design-help"
+        />
+        <p id="design-help" class="mt-1.5 text-sm" :class="errors.designCode ? 'text-danger' : 'text-muted'">
+          {{ errors.designCode ?? 'The colour or print code after the model code. Each design is its own product with its own stock.' }}
         </p>
       </div>
       <div>

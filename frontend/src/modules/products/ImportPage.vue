@@ -100,7 +100,7 @@ const statusLabel = { create: 'Add', skip: 'Skip', error: 'Problem' } as const
       <h2 class="text-xl font-bold">1. Prepare the file</h2>
       <p class="mt-1 text-muted">
         Required columns: <strong class="text-ink">code</strong>, <strong class="text-ink">name</strong>,
-        <strong class="text-ink">selling_price</strong>. Optional: mrp, cost, unit, category, brand, description, aliases
+        <strong class="text-ink">selling_price</strong>. Optional: design_code (e.g. MP4952), mrp, cost, unit, category, brand, description, aliases
         (separate several with |).
       </p>
       <a href="/product-import-template.csv" download class="btn-secondary mt-4">Download the template</a>
@@ -150,7 +150,7 @@ const statusLabel = { create: 'Add', skip: 'Skip', error: 'Problem' } as const
               <td class="px-4 py-3 text-muted tabular-nums">{{ r.row }}</td>
               <td class="px-4 py-3">
                 <p class="font-semibold">{{ r.name || '(no name)' }}</p>
-                <p class="text-sm text-muted">{{ r.code ?? '' }}</p>
+                <p class="text-sm text-muted">{{ r.code ?? '' }}<template v-if="r.design_code"> · {{ r.design_code }}</template></p>
                 <p v-if="r.note" class="mt-1 text-sm text-muted">{{ r.note }}</p>
                 <ul v-if="r.errors.length" class="mt-1 space-y-0.5 text-sm text-danger">
                   <li v-for="(e, i) in r.errors" :key="i">{{ e.message }}</li>

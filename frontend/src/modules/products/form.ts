@@ -1,6 +1,6 @@
 // Product form state and checks. Mirrors the server rules (backend catalog/domain.rs)
 // so people see problems before saving; the server still decides.
-import { normalizeCode } from '@/shared/code'
+import { MAX_DESIGN, normalizeCode, normalizeDesign } from '@/shared/code'
 import { formatRupees, parseMoneyInput } from '@/shared/money'
 import type { Product, ProductBody } from './api'
 
@@ -9,6 +9,8 @@ export const UNITS = ['piece', 'set', 'pack', 'box', 'pair', 'dozen'] as const
 export interface ProductForm {
   name: string
   code: string
+  /** Design/colour code from the label, e.g. MP4952. */
+  designCode: string
   categoryId: string
   unit: string
   packQty: string
@@ -25,6 +27,7 @@ export function emptyForm(): ProductForm {
   return {
     name: '',
     code: '',
+    designCode: '',
     categoryId: '',
     unit: 'piece',
     packQty: '1',
@@ -41,6 +44,7 @@ export function fromProduct(p: Product): ProductForm {
   return {
     name: p.name,
     code: code?.raw_value ?? p.code ?? '',
+    designCode: p.design_code ?? '',
     categoryId: p.category?.id ?? '',
     unit: p.unit,
     packQty: String(p.pack_qty),
@@ -56,6 +60,7 @@ export function fromProduct(p: Product): ProductForm {
 export const SERVER_FIELDS: Record<string, keyof ProductForm> = {
   name: 'name',
   code: 'code',
+  design_code: 'designCode',
   category_id: 'categoryId',
   unit: 'unit',
   pack_qty: 'packQty',
@@ -73,6 +78,8 @@ export function validateForm(f: ProductForm): FormErrors {
   const name = f.name.trim()
   if (!name || name.length > 200) e.name = 'Enter a name of 1 to 200 characters.'
   if (!normalizeCode(f.code)) e.code = 'Enter the model code printed on the label, for example IP 1060-11.'
+  if (!normalizeDesign(f.designCode).ok)
+    e.designCode = `Design code is letters and digits only (up to ${MAX_DESIGN}), for example MP4952.`
 
   const price = f.sellingPrice.trim() ? parseMoneyInput(f.sellingPrice) : null
   if (!f.sellingPrice.trim()) e.sellingPrice = 'Enter the selling price.'
@@ -111,6 +118,8 @@ export function toRequestBody(
     if (value) (body as Record<string, unknown>)[key] = value
     else if (mode === 'edit') (body as Record<string, unknown>)[key] = null
   }
+  const design = normalizeDesign(f.designCode)
+  optional('design_code', design.ok ? design.design : f.designCode.trim())
   optional('category_id', f.categoryId || null)
   optional('mrp', f.mrp.trim() ? (parseMoneyInput(f.mrp) ?? f.mrp.trim()) : null)
   if (includeCost) optional('default_cost', f.defaultCost.trim() ? (parseMoneyInput(f.defaultCost) ?? f.defaultCost.trim()) : null)

@@ -44,6 +44,37 @@ pub fn normalize_query(q: &str) -> String {
     }
 }
 
+/// Longest design code accepted (`MP4952` is 6).
+pub const MAX_DESIGN: usize = 20;
+
+/// A design code that isn't letters and digits, or is too long.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InvalidDesign;
+
+impl std::fmt::Display for InvalidDesign {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "design code must be 1 to {MAX_DESIGN} letters and digits"
+        )
+    }
+}
+
+impl std::error::Error for InvalidDesign {}
+
+/// Normalise a design/colour code such as `MP4952`. `Ok(None)` when blank;
+/// an error unless it is letters and digits only, at most [`MAX_DESIGN`] long.
+pub fn normalize_design(raw: &str) -> Result<Option<String>, InvalidDesign> {
+    let s = normalize_query(raw);
+    if s.is_empty() {
+        return Ok(None);
+    }
+    if s.len() > MAX_DESIGN || !s.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err(InvalidDesign);
+    }
+    Ok(Some(s))
+}
+
 /// Normalise a printed code. `None` if nothing code-like is left (empty or no digit).
 pub fn normalize_code(raw: &str) -> Option<ProductCode> {
     let normalized = normalize_query(raw);

@@ -245,7 +245,10 @@ Normalisation:
 3. Split into a **base code** `B6275` and a **variant** `4.75`.
 
 A design or colour code printed after the model code (`MP4952`,
-`MG4705`) is not part of the product's identity and is dropped
+`MG4705`) is part of the product's identity: the same model in two
+designs is two products. It is stored with the product code
+(`product_identifiers.design_code`) and uniqueness is per brand, type,
+code and design
 ([ADR-0003](docs/adr/0003-product-identification-without-barcodes.md)).
 
 All size variants share one base code. Search groups results by base
@@ -304,8 +307,8 @@ reference to the OCR line it came from:
    (matches `B 6143-8`, `IP 1060-11"`, `IB 1290 -7.8"`). The size is
    required: it is what tells a model code from a design code.
 3. Design code: letters and four digits with **no** size (`MP4952`),
-   which on plain labels can stand on a line of its own. Recognised so
-   it can't be taken for the model code, then dropped. Design names
+   which on plain labels can stand on a line of its own. Proposed as
+   the product's design code, never as the model code. Design names
    (`Retro Daisy`) are left in the leftover text. If a label has no
    sized code at all, an unsized one is offered as a low-confidence
    guess for the person to check.
@@ -853,7 +856,7 @@ Each phase is a working vertical slice with exit criteria.
 | Question | Needed by |
 |---|---|
 | ~~Photos of real Ektra labels~~ 5 received 5 Nov 2026; more welcome for the corpus | Phase 3 |
-| Which devices: shop desktop/tablet model, staff and driver phones | Phase 3 spike |
+| Which devices: Android phones (Samsung, Realme, …) — answered 5 Nov 2026; exact models still useful for the spike | Phase 3 spike |
 | Receipt printer: model, 58 or 80 mm, USB or Bluetooth | Phase 5 |
 | Number of cashiers; is shift/till open-close needed? | Phase 5 |
 | Delivery zones and fees; default driver pay per delivery | Phase 6 |

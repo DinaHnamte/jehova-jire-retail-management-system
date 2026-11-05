@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT p.id, p.brand_id, b.name AS brand_name, p.category_id, c.name AS \"category_name?\",\n                      p.name, p.description, p.unit, p.pack_qty, p.attributes, p.selling_price, p.mrp,\n                      p.default_cost, p.hsn_code, p.archived_at, p.created_at, p.updated_at,\n                      pi.raw_value AS \"code_raw?\", pi.normalized_value AS \"code?\",\n                      pi.base_code AS \"base_code?\", pi.variant AS \"variant?\"\n               FROM products p\n               JOIN brands b ON b.id = p.brand_id\n               LEFT JOIN categories c ON c.id = p.category_id\n               LEFT JOIN product_identifiers pi ON pi.product_id = p.id AND pi.identifier_type = 'product_code'\n               WHERE p.id = $1\n               FOR UPDATE OF p",
+  "query": "SELECT p.id, p.brand_id, b.name AS brand_name, p.category_id, c.name AS \"category_name?\",\n                      p.name, p.description, p.unit, p.pack_qty, p.attributes, p.selling_price, p.mrp,\n                      p.default_cost, p.hsn_code, p.archived_at, p.created_at, p.updated_at,\n                      pi.raw_value AS \"code_raw?\", pi.normalized_value AS \"code?\",\n                      pi.base_code AS \"base_code?\", pi.variant AS \"variant?\", pi.design_code AS \"design_code?\"\n               FROM products p\n               JOIN brands b ON b.id = p.brand_id\n               LEFT JOIN categories c ON c.id = p.category_id\n               LEFT JOIN product_identifiers pi ON pi.product_id = p.id AND pi.identifier_type = 'product_code'\n               WHERE p.id = $1\n               FOR UPDATE OF p",
   "describe": {
     "columns": [
       {
@@ -233,6 +233,17 @@
             "name": "variant"
           }
         }
+      },
+      {
+        "ordinal": 21,
+        "name": "design_code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "design_code"
+          }
+        }
       }
     ],
     "parameters": {
@@ -261,8 +272,9 @@
       false,
       false,
       true,
+      true,
       true
     ]
   },
-  "hash": "81539d722871de001ba286159c857e15ad6cc2bab16c247949346ab9256e9168"
+  "hash": "a561381da4eec06bf2ed538a668c17b765c3c27d6c37dbf7342ce7cfa2a6466c"
 }
