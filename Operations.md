@@ -72,8 +72,12 @@ restored hasn't been proven.
   owner by email or phone.
 - JSON logs via journald, rotated. Each request has an ID that is shown
   to the user in error messages, so a reported problem can be found.
-- Nightly reconciliation job (stock and ledger). A mismatch sends an
-  alert. It is never auto-corrected.
+- Nightly stock check at 02:00 IST (built in Phase 4): each product's
+  stock is compared with the sum of its history. A mismatch is logged
+  as an error and shown as a red banner on the Stock page; an admin can
+  also run it from there. It is never auto-corrected. Sending it as an
+  alert comes with uptime alerting (Phase 7); the money-ledger check
+  joins it in Phase 5.
 - Alerts for disk > 80% and a failed backup.
 
 ## 4. Delivery drivers: legal and compliance
@@ -145,8 +149,9 @@ reporting; customer data privacy; termination.
 - [ ] Uptime and backup alerts reach the owner
 - [ ] Admin account with a strong password; staff accounts with
       least-privilege roles
-- [ ] Opening stock count entered as `opening_balance` movements and
-      checked
+- [ ] Opening stock count done before the first sale (Stock → Stock
+      counts: count every product once, with its cost where known), and
+      the Stock page's "Cost unknown" filter reviewed
 - [ ] Receipt prints correctly on the shop's printer
 - [ ] POS and scanner tested on the shop's actual devices and network
 - [ ] Tax mode confirmed (`none` unless GST registration is confirmed

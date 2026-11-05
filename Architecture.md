@@ -858,6 +858,12 @@ Each phase is a working vertical slice with exit criteria.
 | **7. Go-live readiness** | Reports, audit views, backups + **restore drill**, uptime alerting, staff guide, test on shop devices | [Operations.md](Operations.md) checklist complete |
 | **Later** | Offer board, customer credit, GST go-live, ESC/POS printing, multi-location, payment gateway, accounting export | — |
 
+**Status (6 Nov 2026):** Phases 1 and 2 are live. Phase 3 (scanner) is
+parked after its spike (§7.5). Phase 4 is built: stock ledger, opening
+and recounts, goods receipts with weighted-average cost, adjustments,
+suppliers and the nightly stock check; its exit criterion is pinned by
+the test `every_unit_traces_to_a_confirmed_source`.
+
 ## 21. Open questions
 
 | Question | Needed by |
