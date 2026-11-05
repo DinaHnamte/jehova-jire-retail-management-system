@@ -97,6 +97,16 @@ impl AppError {
 }
 
 impl AppError {
+    /// 429: too many requests to a public endpoint.
+    pub fn too_many_requests() -> Self {
+        Self::Coded {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            code: "RATE_LIMITED",
+            message: "Too many requests. Wait a minute and try again.".into(),
+            details: json!({}),
+        }
+    }
+
     /// 409: the document is already final (confirmed or posted).
     pub fn not_draft(what: &str) -> Self {
         Self::Coded {

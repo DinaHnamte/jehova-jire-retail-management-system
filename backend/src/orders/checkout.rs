@@ -18,6 +18,7 @@ use uuid::Uuid;
 use super::{
     domain::{LineIn, PriceError, price_lines},
     numbers::next_number,
+    read,
 };
 use crate::{
     AppState,
@@ -326,11 +327,12 @@ pub async fn checkout(
 
     // Number and order row.
     let order_id = new_id();
-    let number = next_number(&mut tx, "receipt", Utc::now()).await?;
+    let now = Utc::now();
+    let number = next_number(&mut tx, "receipt", now).await?;
     sqlx::query!(
         "INSERT INTO orders (id, number, customer_id, status, subtotal, order_discount, total,
-                             note, receipt_token, created_by)
-         VALUES ($1, $2, $3, 'confirmed', $4, $5, $6, $7, $8, $9)",
+                             note, receipt_token, created_by, created_at)
+         VALUES ($1, $2, $3, 'confirmed', $4, $5, $6, $7, $8, $9, $10)",
         order_id,
         number,
         customer_id,
@@ -339,7 +341,8 @@ pub async fn checkout(
         total,
         v.note,
         receipt_token(),
-        actor
+        actor,
+        now
     )
     .execute(&mut *tx)
     .await?;
@@ -474,14 +477,22 @@ pub async fn checkout_route(
     user: CurrentUser,
     headers: HeaderMap,
     ApiJson(body): ApiJson<Value>,
-) -> AppResult<(StatusCode, Json<Value>)> {
+) -> AppResult<(StatusCode, Json<read::OrderDetail>)> {
     user.require("orders.confirm")?;
     let key = idempotency::key_from_headers(&headers)?;
     let (created, v) = checkout(&s.db, user.id, &key, body).await?;
+    // The stored (idempotent) answer only names the order; the reply is always built fresh so
+    // it reflects who is asking (cost) and the current state.
+    let id = v["id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("stored checkout has no order id")))?;
+    let mut conn = s.db.acquire().await?;
+    let detail = read::order_detail(&mut conn, id, user.can("products.update"), &s.config).await?;
     let status = if created {
         StatusCode::CREATED
     } else {
         StatusCode::OK
     };
-    Ok((status, Json(v)))
+    Ok((status, Json(detail)))
 }

@@ -209,7 +209,7 @@ async fn pay_later_needs_a_customer(pool: PgPool) {
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(v["customer_id"], cid.to_string());
+    assert_eq!(v["customer"]["id"], cid.to_string());
 }
 
 #[sqlx::test]
@@ -418,7 +418,7 @@ async fn existing_phone_reuses_customer(pool: PgPool) {
                       "new_customer": {"phone": "09862012345"}});
     let r = checkout(&sh.a, &sh.s, Some(&key()), body).await;
     assert_eq!(r.status(), 201, "{:?}", r.json());
-    assert_eq!(r.json()["customer_id"], made.json()["id"]);
+    assert_eq!(r.json()["customer"]["id"], made.json()["id"]);
     assert_eq!(count(&pool, "SELECT count(*) FROM customers").await, 1);
 }
 

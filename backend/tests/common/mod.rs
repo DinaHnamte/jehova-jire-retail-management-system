@@ -44,14 +44,19 @@ pub fn test_config() -> Config {
         trust_proxy: false,
         log_format: "pretty".into(),
         run_migrations: false,
+        public_url: "https://shop.test".into(),
     }
 }
 
 pub fn app(pool: PgPool) -> TestApp {
-    let state = AppState::new(pool.clone(), test_config());
+    app_with_state(AppState::new(pool.clone(), test_config()))
+}
+
+/// Build the app around a state the test prepared (e.g. a tighter rate limiter).
+pub fn app_with_state(state: AppState) -> TestApp {
     TestApp {
+        pool: state.db.clone(),
         router: build_app(state),
-        pool,
     }
 }
 

@@ -10,7 +10,7 @@ use crate::{
     audit,
     catalog::is_unique_violation,
     error::{AppError, AppResult},
-    ledger,
+    ledger, orders,
     shared::{
         ids::new_id,
         paging::{Page, Paging},
@@ -47,7 +47,7 @@ fn duplicate(id: Uuid) -> AppError {
     AppError::Coded {
         status: axum::http::StatusCode::CONFLICT,
         code: "DUPLICATE",
-        message: "A customer with this phone already exists.".into(),
+        message: "A customer with this phone already exists. Open that customer instead.".into(),
         details: json!({ "customer_id": id.to_string() }),
     }
 }
@@ -68,7 +68,9 @@ async fn map_phone_clash(db: &PgPool, e: sqlx::Error, phone: &str) -> AppError {
         {
             return duplicate(id);
         }
-        return AppError::Conflict("A customer with this phone already exists.".into());
+        return AppError::Conflict(
+            "A customer with this phone already exists. Open that customer instead.".into(),
+        );
     }
     e.into()
 }
@@ -133,10 +135,10 @@ pub async fn list(db: &PgPool, p: ListParams) -> AppResult<Page<CustomerRow>> {
     .await?;
     let rows = sqlx::query!(
         r#"SELECT c.id, c.phone, c.name, c.note, c.created_at,
-                  (SELECT max(o.created_at) FROM orders o WHERE o.customer_id = c.id) AS last_sale_at
+                  (SELECT max(o.created_at) FROM orders o WHERE o.customer_id = c.id AND o.status = 'confirmed') AS last_sale_at
            FROM customers c
            WHERE ($1::text IS NULL OR c.phone LIKE $1) AND ($2::text IS NULL OR c.name ILIKE $2)
-           ORDER BY (SELECT max(o.created_at) FROM orders o WHERE o.customer_id = c.id) DESC NULLS LAST,
+           ORDER BY (SELECT max(o.created_at) FROM orders o WHERE o.customer_id = c.id AND o.status = 'confirmed') DESC NULLS LAST,
                     lower(c.name), c.id
            LIMIT $3 OFFSET $4"#,
         phone_like.as_deref(),
@@ -173,10 +175,20 @@ pub async fn detail(db: &PgPool, id: Uuid) -> AppResult<CustomerDetail> {
     let mut conn = db.acquire().await?;
     let customer = fetch(&mut conn, id).await?;
     let owes = money(ledger::customer_owes(&mut conn, id).await?);
+    let orders = orders::read::list(
+        &mut conn,
+        orders::read::OrderListParams {
+            customer_id: Some(id),
+            per_page: Some(50),
+            ..Default::default()
+        },
+    )
+    .await?
+    .items;
     Ok(CustomerDetail {
         customer,
         owes,
-        orders: Vec::new(), // Task 7 fills this
+        orders,
         payments: Vec::new(),
     })
 }

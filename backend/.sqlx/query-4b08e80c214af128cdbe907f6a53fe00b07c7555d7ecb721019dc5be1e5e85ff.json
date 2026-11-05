@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT c.id, c.phone, c.name, c.note, c.created_at,\n                  (SELECT max(o.created_at) FROM orders o WHERE o.customer_id = c.id) AS last_sale_at\n           FROM customers c\n           WHERE ($1::text IS NULL OR c.phone LIKE $1) AND ($2::text IS NULL OR c.name ILIKE $2)\n           ORDER BY (SELECT max(o.created_at) FROM orders o WHERE o.customer_id = c.id) DESC NULLS LAST,\n                    lower(c.name), c.id\n           LIMIT $3 OFFSET $4",
+  "query": "SELECT c.id, c.phone, c.name, c.note, c.created_at,\n                  (SELECT max(o.created_at) FROM orders o WHERE o.customer_id = c.id AND o.status = 'confirmed') AS last_sale_at\n           FROM customers c\n           WHERE ($1::text IS NULL OR c.phone LIKE $1) AND ($2::text IS NULL OR c.name ILIKE $2)\n           ORDER BY (SELECT max(o.created_at) FROM orders o WHERE o.customer_id = c.id AND o.status = 'confirmed') DESC NULLS LAST,\n                    lower(c.name), c.id\n           LIMIT $3 OFFSET $4",
   "describe": {
     "columns": [
       {
@@ -82,5 +82,5 @@
       null
     ]
   },
-  "hash": "0024b17c4c3c59bbfb55a5deb9a650d20269e0707d7544f31c4b926edb7af5e8"
+  "hash": "4b08e80c214af128cdbe907f6a53fe00b07c7555d7ecb721019dc5be1e5e85ff"
 }

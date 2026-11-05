@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT o.id, o.number, o.status, o.created_at, o.customer_id, o.total,\n                  c.name AS \"customer_name?\", c.phone AS \"customer_phone?\", r.owed AS \"owed!\"\n           FROM orders o\n           LEFT JOIN customers c ON c.id = o.customer_id\n           CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e\n                               WHERE e.account = 'receivable' AND e.ref_id = o.id) r\n           WHERE ($1::timestamptz IS NULL OR o.created_at >= $1)\n             AND ($2::timestamptz IS NULL OR o.created_at < $2)\n             AND ($3::uuid IS NULL OR o.customer_id = $3)\n             AND ($4::text IS NULL OR $4 = CASE WHEN r.owed = 0 THEN 'paid'\n                                                WHEN r.owed = o.total THEN 'unpaid'\n                                                ELSE 'partly_paid' END)\n           ORDER BY o.created_at DESC, o.id DESC\n           LIMIT $5 OFFSET $6",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "orders",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "number",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "orders",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "orders",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "orders",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "customer_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "orders",
+            "name": "customer_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "total",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "orders",
+            "name": "total"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "customer_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "customers",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "customer_phone?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "customers",
+            "name": "phone"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "owed!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz",
+        "Uuid",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "2aa13e90c11cb421ecfdfa99e749d6f8864ea9fdfd8f86f4404934bb3c3786c5"
+}

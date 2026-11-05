@@ -13,6 +13,8 @@ pub struct Config {
     pub log_format: String,
     /// Apply pending migrations at startup (development convenience).
     pub run_migrations: bool,
+    /// Public base URL of the app, no trailing slash; receipt links are built on it.
+    pub public_url: String,
 }
 
 impl Config {
@@ -27,6 +29,9 @@ impl Config {
             trust_proxy: parse_bool("TRUST_PROXY", false)?,
             log_format: var_or("LOG_FORMAT", "json"),
             run_migrations: parse_bool("RUN_MIGRATIONS", false)?,
+            public_url: var_or("PUBLIC_URL", "http://localhost:8000")
+                .trim_end_matches('/')
+                .to_string(),
         })
     }
 }

@@ -1,0 +1,136 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT product_id, product_name, product_code, quantity, list_price, unit_price,\n                line_discount, order_discount_share, net_amount, unit_cost\n         FROM order_lines WHERE order_id = $1 ORDER BY line_no",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "product_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "product_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "product_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "product_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "product_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "product_code"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "quantity",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "quantity"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "list_price",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "list_price"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "unit_price",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "unit_price"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "line_discount",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "line_discount"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "order_discount_share",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "order_discount_share"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "net_amount",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "net_amount"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "unit_cost",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "unit_cost"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "bb61ff63d57a8c5bdc6e0066240b8d30dafdf4ba378e760f968f628c139f09a0"
+}

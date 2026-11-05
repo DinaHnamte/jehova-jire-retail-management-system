@@ -3,7 +3,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::catalog::dto::double;
+use crate::{
+    catalog::dto::double,
+    orders::read::{OrderSummary, PaymentRow},
+};
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Customer {
@@ -24,19 +27,11 @@ pub struct CustomerRow {
 }
 
 #[derive(Debug, Serialize)]
-pub struct PaymentRow {
-    pub id: Uuid,
-    pub method: String,
-    pub amount: String,
-    pub occurred_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Serialize)]
 pub struct CustomerDetail {
     pub customer: Customer,
     pub owes: String,
-    /// Latest 50 orders. Task 7 fills this.
-    pub orders: Vec<serde_json::Value>,
+    /// Latest 50 orders, newest first.
+    pub orders: Vec<OrderSummary>,
     /// Latest 50 payments. Later payments (Task 8) fill this.
     pub payments: Vec<PaymentRow>,
 }
