@@ -30,6 +30,12 @@ pub enum AppError {
     MethodNotAllowed,
     #[error("{0}")]
     Conflict(String),
+    /// A product code (or other identifier) that is already taken; `details` names the owner.
+    #[error("{message}")]
+    Duplicate {
+        message: String,
+        details: serde_json::Value,
+    },
     #[error("Something went wrong on the server.")]
     Internal(#[source] anyhow::Error),
 }
@@ -44,7 +50,7 @@ impl AppError {
             Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
-            Self::Conflict(_) => StatusCode::CONFLICT,
+            Self::Conflict(_) | Self::Duplicate { .. } => StatusCode::CONFLICT,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -61,6 +67,7 @@ impl AppError {
             Self::NotFound => "NOT_FOUND",
             Self::MethodNotAllowed => "METHOD_NOT_ALLOWED",
             Self::Conflict(_) => "CONFLICT",
+            Self::Duplicate { .. } => "DUPLICATE_CODE",
             Self::Internal(_) => "INTERNAL",
         }
     }
@@ -71,11 +78,15 @@ impl IntoResponse for AppError {
         if let Self::Internal(err) = &self {
             tracing::error!(error = ?err, "internal error");
         }
+        let details = match &self {
+            Self::Duplicate { details, .. } => details.clone(),
+            _ => json!({}),
+        };
         let body = json!({
             "error": {
                 "code": self.code(),
                 "message": self.to_string(),
-                "details": {},
+                "details": details,
                 "request_id": request_id::current().map(|id| id.to_string()),
             }
         });

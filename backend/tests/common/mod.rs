@@ -99,6 +99,74 @@ impl TestApp {
     }
 }
 
+impl TestApp {
+    /// Any method with an optional body, cookie and CSRF header.
+    pub async fn request(
+        &self,
+        method: &str,
+        path: &str,
+        content_type: Option<&str>,
+        body: Option<String>,
+        cookie: Option<&str>,
+        csrf: Option<&str>,
+    ) -> TestResponse {
+        let mut b = Request::builder().method(method).uri(path);
+        if let Some(ct) = content_type {
+            b = b.header("content-type", ct);
+        }
+        if let Some(c) = cookie {
+            b = b.header("cookie", c);
+        }
+        if let Some(t) = csrf {
+            b = b.header("x-csrf-token", t);
+        }
+        self.send(
+            b.body(body.map(Body::from).unwrap_or_else(Body::empty))
+                .unwrap(),
+        )
+        .await
+    }
+
+    pub async fn patch_json(
+        &self,
+        path: &str,
+        body: Value,
+        cookie: Option<&str>,
+        csrf: Option<&str>,
+    ) -> TestResponse {
+        self.request(
+            "PATCH",
+            path,
+            Some("application/json"),
+            Some(body.to_string()),
+            cookie,
+            csrf,
+        )
+        .await
+    }
+
+    pub async fn delete_with(
+        &self,
+        path: &str,
+        cookie: Option<&str>,
+        csrf: Option<&str>,
+    ) -> TestResponse {
+        self.request("DELETE", path, None, None, cookie, csrf).await
+    }
+
+    pub async fn post_raw(
+        &self,
+        path: &str,
+        content_type: &str,
+        body: String,
+        cookie: Option<&str>,
+        csrf: Option<&str>,
+    ) -> TestResponse {
+        self.request("POST", path, Some(content_type), Some(body), cookie, csrf)
+            .await
+    }
+}
+
 pub async fn seed_user(
     pool: &PgPool,
     username: &str,

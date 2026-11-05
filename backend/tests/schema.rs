@@ -129,3 +129,20 @@ async fn users_with_sessions_cannot_be_deleted(pool: PgPool) {
             .is_err()
     );
 }
+
+#[sqlx::test]
+async fn catalog_tables_exist(pool: PgPool) {
+    let tables: Vec<String> = sqlx::query_scalar(
+        "SELECT table_name::text FROM information_schema.tables
+         WHERE table_schema = 'public'
+           AND table_name IN ('brands','categories','products','product_identifiers')
+         ORDER BY 1",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        tables,
+        ["brands", "categories", "product_identifiers", "products"]
+    );
+}
