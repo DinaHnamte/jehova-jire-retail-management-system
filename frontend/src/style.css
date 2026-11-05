@@ -191,6 +191,9 @@ h3,
   .btn-secondary:hover {
     @apply border-ink/50 bg-ink/5;
   }
+  .btn-secondary:disabled {
+    @apply cursor-not-allowed opacity-40 hover:border-ink/25 hover:bg-transparent;
+  }
 
   .link {
     @apply font-semibold text-primary-ink underline decoration-2 underline-offset-4;

@@ -11,4 +11,10 @@ describe('visibleNav', () => {
   it('admin sees Users', () => {
     expect(visibleNav(() => true).map((i) => i.label)).toContain('Users')
   })
+
+  it('shows Products to anyone with products.read, after Overview', () => {
+    const labels = visibleNav((p) => p === 'products.read').map((i) => i.label)
+    expect(labels).toEqual(['Overview', 'Products'])
+    expect(visibleNav(() => false).map((i) => i.label)).not.toContain('Products')
+  })
 })

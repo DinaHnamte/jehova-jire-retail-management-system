@@ -15,7 +15,7 @@ export function configureApi(c: ApiConfig) {
   config = c
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const headers = new Headers({ accept: 'application/json' })
   if (body !== undefined) headers.set('content-type', 'application/json')
   if (!SAFE_METHODS.has(method)) {
@@ -30,8 +30,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       headers,
       credentials: 'same-origin',
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
     })
-  } catch {
+  } catch (e) {
+    // A cancelled request isn't a failure the person needs to see; let callers ignore it.
+    if (e instanceof DOMException && e.name === 'AbortError') throw e
     throw new ApiError(0, 'NETWORK_ERROR', 'Network request failed')
   }
 
@@ -52,7 +55,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>('GET', path),
+  get: <T>(path: string, opts?: { signal?: AbortSignal }) => request<T>('GET', path, undefined, opts?.signal),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),

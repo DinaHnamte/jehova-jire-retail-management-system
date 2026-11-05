@@ -238,7 +238,7 @@ pub async fn list(db: &PgPool, p: ListParams) -> AppResult<Page<ProductSummary>>
              CASE WHEN $7 IN ('rank', 'code') THEN pi.base_code END,
              CASE WHEN $7 IN ('rank', 'code') THEN pi.variant_num END NULLS FIRST,
              CASE WHEN $7 = 'updated' THEN p.updated_at END DESC,
-             lower(p.name), p.id
+             lower(p.name), pi.base_code, pi.variant_num NULLS FIRST, pi.variant, p.id
            LIMIT $8 OFFSET $9"#,
         raw,
         norm,

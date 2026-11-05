@@ -102,4 +102,16 @@ describe('api client', () => {
     expect(err.code).toBe('NETWORK_ERROR')
     expect(err.status).toBe(0)
   })
+
+  it('passes the abort signal and rejects with AbortError', async () => {
+    const ctrl = new AbortController()
+    fetchMock.mockImplementation((_url: string, init: RequestInit) => {
+      expect(init.signal).toBe(ctrl.signal)
+      return Promise.reject(new DOMException('aborted', 'AbortError'))
+    })
+    ctrl.abort()
+    const err = await rejection(api.get('/products', { signal: ctrl.signal }))
+    expect(err).toBeInstanceOf(DOMException)
+    expect((err as unknown as DOMException).name).toBe('AbortError')
+  })
 })

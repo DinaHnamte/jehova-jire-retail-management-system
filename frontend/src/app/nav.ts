@@ -6,11 +6,12 @@ export interface NavItem {
   icon: NavIconName
 }
 
-export type NavIconName = 'overview' | 'users'
+export type NavIconName = 'overview' | 'products' | 'users'
 
 /** Main menu. Later phases append items (POS, Products, …). */
 export const navItems: NavItem[] = [
   { label: 'Overview', to: '/', icon: 'overview' },
+  { label: 'Products', to: '/products', perm: 'products.read', icon: 'products' },
   { label: 'Users', to: '/admin/users', perm: 'users.manage', icon: 'users' },
 ]
 

@@ -346,3 +346,14 @@ async fn search_is_fast_at_10k_products(pool: PgPool) {
     println!("search median {median:?}, max {:?}", times.last().unwrap());
     assert!(median.as_millis() < 100, "median {median:?}");
 }
+
+#[sqlx::test]
+async fn same_name_lists_sizes_in_order(pool: PgPool) {
+    let c = ctx(pool).await;
+    for code in ["IP 1060-11", "IP 1060-9", "IP 1060-12"] {
+        c.add(code, "4 Section Plate", None).await;
+    }
+    let p = c.get("/api/v1/products").await;
+    let got: Vec<&str> = p["items"].as_array().unwrap().iter().map(|i| i["code"].as_str().unwrap()).collect();
+    assert_eq!(got, ["IP1060-9", "IP1060-11", "IP1060-12"]);
+}
