@@ -3,6 +3,7 @@ pub mod domain;
 pub mod dto;
 pub mod repo;
 pub mod routes;
+pub mod search;
 pub mod service;
 
 use uuid::Uuid;

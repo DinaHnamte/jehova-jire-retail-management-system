@@ -18,14 +18,36 @@ use crate::{
     AppState,
     admin::session::CurrentUser,
     error::AppResult,
-    http::{json::ApiJson, path::ApiPath},
+    http::{json::ApiJson, path::ApiPath, query::ApiQuery},
+    shared::paging::Page,
 };
+
+use super::search::{self, ListParams, ProductSummary, SearchParams, SearchResponse};
+
+async fn search_products(
+    State(s): State<AppState>,
+    user: CurrentUser,
+    ApiQuery(p): ApiQuery<SearchParams>,
+) -> AppResult<Json<SearchResponse>> {
+    user.require("products.read")?;
+    Ok(Json(search::search(&s.db, p).await?))
+}
+
+async fn list_products(
+    State(s): State<AppState>,
+    user: CurrentUser,
+    ApiQuery(p): ApiQuery<ListParams>,
+) -> AppResult<Json<Page<ProductSummary>>> {
+    user.require("products.read")?;
+    Ok(Json(search::list(&s.db, p).await?))
+}
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/brands", get(list_brands).post(create_brand))
         .route("/categories", get(list_categories).post(create_category))
-        .route("/products", post(create_product))
+        .route("/products", get(list_products).post(create_product))
+        .route("/products/search", get(search_products))
         .route("/products/{id}", get(get_product).patch(update_product))
         .route("/products/{id}/archive", post(archive_product))
         .route("/products/{id}/restore", post(restore_product))

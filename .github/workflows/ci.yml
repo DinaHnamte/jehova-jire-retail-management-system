@@ -43,6 +43,8 @@ jobs:
         run: SQLX_OFFLINE=false cargo sqlx prepare --check -- --all-targets
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --locked
+      - name: Search speed at 10,000 products (phase 2 exit, < 100 ms)
+        run: cargo test --locked --test catalog_search -- --ignored --nocapture
 
   frontend:
     runs-on: ubuntu-latest

@@ -1,0 +1,158 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id, p.name, pi.normalized_value AS \"code?\", pi.base_code AS \"base_code?\",\n                  pi.variant AS \"variant?\", p.selling_price, p.mrp, p.unit,\n                  p.category_id, c.name AS \"category_name?\",\n                  p.archived_at IS NOT NULL AS \"archived!\", h.stage AS \"stage?\"\n           FROM products p\n           LEFT JOIN catalog_search_hits($1, $2) h ON h.product_id = p.id\n           LEFT JOIN categories c ON c.id = p.category_id\n           LEFT JOIN product_identifiers pi ON pi.product_id = p.id AND pi.identifier_type = 'product_code'\n           WHERE (NOT $3 OR h.stage IS NOT NULL)\n             AND ($4 = 'all' OR ($4 = 'active') = (p.archived_at IS NULL))\n             AND ($5::uuid IS NULL OR p.category_id = $5)\n             AND ($6::uuid IS NULL OR p.brand_id = $6)\n           ORDER BY\n             CASE WHEN $7 = 'rank' THEN h.stage END,\n             CASE WHEN $7 IN ('rank', 'code') THEN pi.base_code END,\n             CASE WHEN $7 IN ('rank', 'code') THEN pi.variant_num END NULLS FIRST,\n             CASE WHEN $7 = 'updated' THEN p.updated_at END DESC,\n             lower(p.name), p.id\n           LIMIT $8 OFFSET $9",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "normalized_value"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "base_code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "base_code"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "variant?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "product_identifiers",
+            "name": "variant"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "selling_price",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "selling_price"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "mrp",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "mrp"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "unit",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "unit"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "category_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "products",
+            "name": "category_id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "category_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "categories",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "archived!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 11,
+        "name": "stage?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "909b6e5afe452180d381a0901bff4a46b8ed08eaa96c2ed07301a76c37610982"
+}
