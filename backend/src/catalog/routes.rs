@@ -24,6 +24,29 @@ use crate::{
 
 use super::search::{self, ListParams, ProductSummary, SearchParams, SearchResponse};
 
+#[derive(serde::Deserialize)]
+struct ImportParams {
+    /// Defaults to a dry run, so a stray request never writes.
+    #[serde(default = "yes")]
+    dry_run: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+async fn import_products(
+    State(s): State<AppState>,
+    user: CurrentUser,
+    ApiQuery(p): ApiQuery<ImportParams>,
+    body: axum::body::Bytes,
+) -> AppResult<Json<super::import::ImportReport>> {
+    user.require("products.create")?;
+    Ok(Json(
+        super::import::import(&s.db, user.id, &body, p.dry_run).await?,
+    ))
+}
+
 async fn search_products(
     State(s): State<AppState>,
     user: CurrentUser,
@@ -48,6 +71,7 @@ pub fn router() -> Router<AppState> {
         .route("/categories", get(list_categories).post(create_category))
         .route("/products", get(list_products).post(create_product))
         .route("/products/search", get(search_products))
+        .route("/products/import", post(import_products))
         .route("/products/{id}", get(get_product).patch(update_product))
         .route("/products/{id}/archive", post(archive_product))
         .route("/products/{id}/restore", post(restore_product))

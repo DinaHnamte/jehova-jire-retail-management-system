@@ -24,6 +24,12 @@ pub enum AppError {
     BadRequest(String),
     #[error("{0}")]
     Validation(String),
+    /// A request failed business rules; `details` carries the full report (e.g. an import).
+    #[error("{message}")]
+    Unprocessable {
+        message: String,
+        details: serde_json::Value,
+    },
     /// A business rule failed on one input field; `details.field` names it for the form.
     #[error("{message}")]
     FieldInvalid { field: String, message: String },
@@ -50,7 +56,9 @@ impl AppError {
             Self::Forbidden | Self::CsrfInvalid => StatusCode::FORBIDDEN,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
-            Self::Validation(_) | Self::FieldInvalid { .. } => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::Validation(_) | Self::FieldInvalid { .. } | Self::Unprocessable { .. } => {
+                StatusCode::UNPROCESSABLE_ENTITY
+            }
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
             Self::Conflict(_) | Self::Duplicate { .. } => StatusCode::CONFLICT,
@@ -66,7 +74,9 @@ impl AppError {
             Self::InvalidCredentials => "INVALID_CREDENTIALS",
             Self::RateLimited => "RATE_LIMITED",
             Self::BadRequest(_) => "BAD_REQUEST",
-            Self::Validation(_) | Self::FieldInvalid { .. } => "VALIDATION_FAILED",
+            Self::Validation(_) | Self::FieldInvalid { .. } | Self::Unprocessable { .. } => {
+                "VALIDATION_FAILED"
+            }
             Self::NotFound => "NOT_FOUND",
             Self::MethodNotAllowed => "METHOD_NOT_ALLOWED",
             Self::Conflict(_) => "CONFLICT",
@@ -82,7 +92,9 @@ impl IntoResponse for AppError {
             tracing::error!(error = ?err, "internal error");
         }
         let details = match &self {
-            Self::Duplicate { details, .. } => details.clone(),
+            Self::Duplicate { details, .. } | Self::Unprocessable { details, .. } => {
+                details.clone()
+            }
             Self::FieldInvalid { field, .. } => json!({ "field": field }),
             _ => json!({}),
         };

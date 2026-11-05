@@ -1,6 +1,7 @@
 //! Product catalogue: brands, categories, products, identifiers (Architecture.md §6).
 pub mod domain;
 pub mod dto;
+pub mod import;
 pub mod repo;
 pub mod routes;
 pub mod search;

@@ -372,3 +372,17 @@ pub async fn set_archived(conn: &mut PgConnection, id: Uuid, archived: bool) -> 
     };
     Ok(n > 0)
 }
+
+/// Every identifier as `(brand_id, type, normalized_value)`, for import duplicate checks.
+pub async fn all_identifier_keys(
+    conn: &mut PgConnection,
+) -> AppResult<Vec<(Uuid, String, String)>> {
+    Ok(
+        sqlx::query!("SELECT brand_id, identifier_type, normalized_value FROM product_identifiers")
+            .fetch_all(conn)
+            .await?
+            .into_iter()
+            .map(|r| (r.brand_id, r.identifier_type, r.normalized_value))
+            .collect(),
+    )
+}
