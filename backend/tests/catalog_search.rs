@@ -354,6 +354,11 @@ async fn same_name_lists_sizes_in_order(pool: PgPool) {
         c.add(code, "4 Section Plate", None).await;
     }
     let p = c.get("/api/v1/products").await;
-    let got: Vec<&str> = p["items"].as_array().unwrap().iter().map(|i| i["code"].as_str().unwrap()).collect();
+    let got: Vec<&str> = p["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["code"].as_str().unwrap())
+        .collect();
     assert_eq!(got, ["IP1060-9", "IP1060-11", "IP1060-12"]);
 }
