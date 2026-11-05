@@ -126,6 +126,28 @@ impl AppError {
             details: json!({ "on_hand": on_hand }),
         }
     }
+
+    /// 400: a money-moving request arrived without a usable Idempotency-Key.
+    pub fn idempotency_key_required() -> Self {
+        Self::Coded {
+            status: StatusCode::BAD_REQUEST,
+            code: "IDEMPOTENCY_KEY_REQUIRED",
+            message: "Missing Idempotency-Key header. Reload the page and try again.".into(),
+            details: json!({}),
+        }
+    }
+
+    /// 409: the same Idempotency-Key was reused with a different request body.
+    pub fn idempotency_conflict() -> Self {
+        Self::Coded {
+            status: StatusCode::CONFLICT,
+            code: "IDEMPOTENCY_CONFLICT",
+            message:
+                "This request was already sent with different details. Start the action again."
+                    .into(),
+            details: json!({}),
+        }
+    }
 }
 
 impl IntoResponse for AppError {
