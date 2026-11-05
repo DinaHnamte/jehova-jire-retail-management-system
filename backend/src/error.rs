@@ -45,6 +45,14 @@ pub enum AppError {
         message: String,
         details: serde_json::Value,
     },
+    /// A business rule with its own error code, e.g. 409 ALREADY_CONFIRMED or 422 INSUFFICIENT_STOCK.
+    #[error("{message}")]
+    Coded {
+        status: StatusCode,
+        code: &'static str,
+        message: String,
+        details: serde_json::Value,
+    },
     #[error("Something went wrong on the server.")]
     Internal(#[source] anyhow::Error),
 }
@@ -62,6 +70,7 @@ impl AppError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed => StatusCode::METHOD_NOT_ALLOWED,
             Self::Conflict(_) | Self::Duplicate { .. } => StatusCode::CONFLICT,
+            Self::Coded { status, .. } => *status,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -81,7 +90,40 @@ impl AppError {
             Self::MethodNotAllowed => "METHOD_NOT_ALLOWED",
             Self::Conflict(_) => "CONFLICT",
             Self::Duplicate { .. } => "DUPLICATE_CODE",
+            Self::Coded { code, .. } => code,
             Self::Internal(_) => "INTERNAL",
+        }
+    }
+}
+
+impl AppError {
+    /// 409: the document is already final (confirmed or posted).
+    pub fn not_draft(what: &str) -> Self {
+        Self::Coded {
+            status: StatusCode::CONFLICT,
+            code: "NOT_DRAFT",
+            message: format!("This {what} is already final and can't be changed."),
+            details: json!({}),
+        }
+    }
+
+    /// 409 with a specific code, for an action that was already done.
+    pub fn already_done(code: &'static str, message: &str) -> Self {
+        Self::Coded {
+            status: StatusCode::CONFLICT,
+            code,
+            message: message.to_string(),
+            details: json!({}),
+        }
+    }
+
+    /// 422: taking stock out would go below zero.
+    pub fn insufficient_stock(on_hand: i64, product: &str) -> Self {
+        Self::Coded {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "INSUFFICIENT_STOCK",
+            message: format!("Only {on_hand} of {product} in stock. Enter {on_hand} or less."),
+            details: json!({ "on_hand": on_hand }),
         }
     }
 }
@@ -92,9 +134,9 @@ impl IntoResponse for AppError {
             tracing::error!(error = ?err, "internal error");
         }
         let details = match &self {
-            Self::Duplicate { details, .. } | Self::Unprocessable { details, .. } => {
-                details.clone()
-            }
+            Self::Duplicate { details, .. }
+            | Self::Unprocessable { details, .. }
+            | Self::Coded { details, .. } => details.clone(),
             Self::FieldInvalid { field, .. } => json!({ "field": field }),
             _ => json!({}),
         };
@@ -123,3 +165,37 @@ impl From<anyhow::Error> for AppError {
 }
 
 pub type AppResult<T> = Result<T, AppError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn coded_error_renders_status_code_and_details() {
+        let e = AppError::insufficient_stock(3, "B 6143-8");
+        assert_eq!(e.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(e.code(), "INSUFFICIENT_STOCK");
+        let res = e.into_response();
+        assert_eq!(res.status(), 422);
+        let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["error"]["code"], "INSUFFICIENT_STOCK");
+        assert_eq!(v["error"]["details"]["on_hand"], 3);
+        assert_eq!(
+            v["error"]["message"],
+            "Only 3 of B 6143-8 in stock. Enter 3 or less."
+        );
+        assert_eq!(AppError::not_draft("receipt").code(), "NOT_DRAFT");
+        assert_eq!(
+            AppError::not_draft("receipt").status(),
+            StatusCode::CONFLICT
+        );
+        let d = AppError::already_done("ALREADY_CONFIRMED", "x");
+        assert_eq!(
+            (d.status(), d.code()),
+            (StatusCode::CONFLICT, "ALREADY_CONFIRMED")
+        );
+    }
+}
