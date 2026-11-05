@@ -78,7 +78,7 @@ async function signOut() {
         <li v-for="item in nav" :key="item.to" class="flex-1">
           <RouterLink
             :to="item.to"
-            class="flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-control text-sm font-semibold text-nav-muted"
+            class="flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-control text-xs font-semibold text-nav-muted"
             exact-active-class="!bg-nav-hover !text-primary"
           >
             <NavIcon :name="item.icon" class="size-6" />

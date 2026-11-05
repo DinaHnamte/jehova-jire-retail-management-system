@@ -23,4 +23,13 @@ describe('visibleNav', () => {
     expect(labels).toEqual(['Overview', 'Products', 'Stock'])
     expect(visibleNav((p) => p === 'products.read').map((i) => i.label)).not.toContain('Stock')
   })
+
+  it('shows POS, Sales and Customers right after Overview for sellers', () => {
+    const labels = visibleNav((p) => p === 'orders.confirm' || p === 'orders.read').map((i) => i.label)
+    expect(labels).toEqual(['Overview', 'POS', 'Sales', 'Customers'])
+    const stockOnly = visibleNav((p) => p === 'inventory.read').map((i) => i.label)
+    expect(stockOnly).not.toContain('POS')
+    expect(stockOnly).not.toContain('Sales')
+    expect(stockOnly).not.toContain('Customers')
+  })
 })

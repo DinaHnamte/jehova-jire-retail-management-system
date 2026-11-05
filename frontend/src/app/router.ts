@@ -17,6 +17,11 @@ export const router = createRouter({
       children: [
         { path: '', component: () => import('@/modules/overview/OverviewPage.vue'), meta: { title: 'Overview' } },
         {
+          path: 'pos',
+          component: () => import('@/modules/pos/PosPage.vue'),
+          meta: { perm: 'orders.confirm', title: 'Sell' },
+        },
+        {
           path: 'products',
           component: () => import('@/modules/products/ProductsPage.vue'),
           meta: { perm: 'products.read', title: 'Products' },
