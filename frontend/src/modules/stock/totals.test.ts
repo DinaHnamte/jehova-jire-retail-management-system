@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countDifference, fieldToLineIndex, grandTotal, lineTotal } from './totals'
+import { countDifference, fieldToLineIndex, grandTotal, lineTotal, reviewTone } from './totals'
 
 describe('lineTotal', () => {
   it('multiplies in whole paise, no float error', () => {
@@ -44,5 +44,13 @@ describe('fieldToLineIndex', () => {
     expect(fieldToLineIndex('lines[0].quantity')).toEqual({ index: 0, key: 'quantity' })
     expect(fieldToLineIndex('name')).toBeNull()
     expect(fieldToLineIndex(undefined)).toBeNull()
+  })
+})
+
+describe('reviewTone', () => {
+  it('colours a count difference', () => {
+    expect(reviewTone(3)).toBe('sage')
+    expect(reviewTone(-2)).toBe('danger')
+    expect(reviewTone(0)).toBe('neutral')
   })
 })

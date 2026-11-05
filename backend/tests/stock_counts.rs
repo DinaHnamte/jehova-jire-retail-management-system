@@ -352,3 +352,22 @@ async fn post_is_audited_and_listed(pool: PgPool) {
     assert_eq!(list["items"][0]["line_count"], 1);
     assert_eq!(list["items"][0]["note"], "Shelf A");
 }
+
+#[sqlx::test]
+async fn lines_say_whether_this_is_the_first_count(pool: PgPool) {
+    let c = ctx(pool).await;
+    let p = c.a.product(&c.s, "B 6143-8", "Bowl").await;
+    let id = c.count().await;
+    let v = c
+        .lines(&id, json!([{"product_id": p, "counted": 12}]))
+        .await
+        .json();
+    assert_eq!(v["lines"][0]["first_count"], true);
+    c.post(&id).await;
+    let id = c.count().await;
+    let v = c
+        .lines(&id, json!([{"product_id": p, "counted": 10}]))
+        .await
+        .json();
+    assert_eq!(v["lines"][0]["first_count"], false);
+}

@@ -98,6 +98,8 @@ export interface CountLine {
   expected: number | null
   difference: number
   changed_since_start: boolean
+  /** No stock was ever recorded for this product, so this count is its opening balance. */
+  first_count: boolean
 }
 
 export interface StockCount {

@@ -12,6 +12,7 @@ const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
 const canCheck = computed(() => session.can('inventory.adjust'))
+const canReceive = computed(() => session.can('purchases.read'))
 
 // List state lives in the URL so Back and shared links restore it.
 interface Params {
@@ -121,6 +122,10 @@ const range = computed(() => {
     <div>
       <h1 class="text-3xl font-extrabold">Stock</h1>
       <p class="mt-1 text-muted">How many of each product the shop has.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <RouterLink to="/stock/counts" class="btn-secondary">Stock counts</RouterLink>
+      <RouterLink v-if="canReceive" to="/stock/receipts" class="btn-primary">Receive goods</RouterLink>
     </div>
   </div>
 

@@ -51,3 +51,8 @@ export function fieldToLineIndex(field: string | undefined | null): { index: num
   const m = /^lines\[(\d+)\]\.(\w+)$/.exec(field ?? '')
   return m ? { index: Number(m[1]), key: m[2]! } : null
 }
+
+/** Colour for a count difference: more than expected, fewer, or the same. */
+export function reviewTone(diff: number): 'sage' | 'danger' | 'neutral' {
+  return diff > 0 ? 'sage' : diff < 0 ? 'danger' : 'neutral'
+}

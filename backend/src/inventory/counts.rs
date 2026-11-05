@@ -87,6 +87,9 @@ pub struct CountLineOut {
     pub difference: i64,
     /// Draft only: stock for this product moved after the count was started.
     pub changed_since_start: bool,
+    /// No stock was ever recorded for this product (other than by this count): it becomes the
+    /// opening balance, and only then is `unit_cost` used.
+    pub first_count: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -140,7 +143,9 @@ pub async fn load(conn: &mut PgConnection, id: Uuid) -> AppResult<CountOut> {
                   COALESCE(b.on_hand, 0) AS "on_hand_now!",
                   ($2 = 'draft' AND EXISTS (
                       SELECT 1 FROM stock_movements m
-                       WHERE m.product_id = l.product_id AND m.created_at > $3)) AS "changed!"
+                       WHERE m.product_id = l.product_id AND m.created_at > $3)) AS "changed!",
+                  NOT EXISTS (SELECT 1 FROM stock_movements m
+                               WHERE m.product_id = l.product_id AND m.source_id <> $1) AS "first_count!"
            FROM stock_count_lines l
            JOIN products p ON p.id = l.product_id
            LEFT JOIN stock_balances b ON b.product_id = l.product_id AND b.location_id = $4
@@ -164,6 +169,7 @@ pub async fn load(conn: &mut PgConnection, id: Uuid) -> AppResult<CountOut> {
             on_hand_now: r.on_hand_now,
             expected: r.expected,
             changed_since_start: r.changed,
+            first_count: r.first_count,
         })
         .collect();
     Ok(CountOut {

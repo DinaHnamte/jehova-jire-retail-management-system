@@ -62,6 +62,16 @@ export const router = createRouter({
           meta: { perm: 'purchases.read', title: 'Receipt' },
         },
         {
+          path: 'stock/counts',
+          component: () => import('@/modules/stock/CountsPage.vue'),
+          meta: { perm: 'inventory.read', title: 'Stock counts' },
+        },
+        {
+          path: 'stock/counts/:id',
+          component: () => import('@/modules/stock/CountEditorPage.vue'),
+          meta: { perm: 'inventory.read', title: 'Stock count' },
+        },
+        {
           path: 'lab/ocr',
           component: () => import('@/modules/lab/OcrLabPage.vue'),
           meta: { perm: 'users.manage', title: 'OCR test' },
