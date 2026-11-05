@@ -5,6 +5,7 @@ pub mod catalog;
 pub mod config;
 pub mod error;
 pub mod http;
+pub mod inventory;
 pub mod shared;
 pub mod state;
 
