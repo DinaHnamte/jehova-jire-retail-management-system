@@ -3,6 +3,7 @@
 //! zero at commit; `post` checks first so a bug fails fast with a clear error.
 
 use crate::error::{AppError, AppResult};
+use crate::shared::ids::new_id;
 use anyhow::anyhow;
 use rust_decimal::Decimal;
 use sqlx::PgConnection;
@@ -93,7 +94,7 @@ pub async fn post(conn: &mut PgConnection, t: TxnInput<'_>) -> AppResult<Uuid> {
 
     // Cash and UPI payments are received by the actor; Internal moves nothing physical.
     let received_by = (t.method != Method::Internal).then_some(t.actor);
-    let id = Uuid::now_v7();
+    let id = new_id();
     sqlx::query!(
         "INSERT INTO ledger_transactions
              (id, kind, order_id, customer_id, method, received_by, note, actor_id, idempotency_key)
@@ -115,7 +116,7 @@ pub async fn post(conn: &mut PgConnection, t: TxnInput<'_>) -> AppResult<Uuid> {
         sqlx::query!(
             "INSERT INTO ledger_entries (id, transaction_id, account, ref_id, amount)
              VALUES ($1, $2, $3, $4, $5)",
-            Uuid::now_v7(),
+            new_id(),
             id,
             name,
             ref_id,
