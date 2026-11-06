@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from './session.store'
 import { friendlyMessage } from '@/shared/api/errors'
-import { safeNext } from '@/app/guards'
+import { homeFor, safeNext } from '@/app/guards'
 import KitchenwareArt from '@/shared/ui/KitchenwareArt.vue'
 import ThemeToggle from '@/shared/ui/ThemeToggle.vue'
 
@@ -22,7 +22,8 @@ async function submit() {
   error.value = null
   try {
     await session.login(username.value, password.value)
-    await router.replace(safeNext(route.query.next))
+    const next = safeNext(route.query.next, '')
+    await router.replace(next && (!session.isDriverOnly || next.startsWith('/driver')) ? next : homeFor(session))
   } catch (e) {
     error.value = friendlyMessage(e)
     password.value = ''

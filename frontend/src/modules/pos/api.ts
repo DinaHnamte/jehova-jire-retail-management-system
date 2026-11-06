@@ -97,6 +97,12 @@ export interface OrderDetail {
   note: string | null
   receipt_url: string
   whatsapp_url: string | null
+  /** `counter` or `delivery`. */
+  fulfilment: 'counter' | 'delivery'
+  /** The delivery fee as it stands now (`0.00` for counter sales). `total` includes it. */
+  delivery_fee: string
+  /** The delivery behind a delivery order. */
+  delivery: { id: string; status: string; driver_name: string | null } | null
 }
 
 export interface OrderSummary {
@@ -107,6 +113,8 @@ export interface OrderSummary {
   customer_id: string | null
   customer_name: string | null
   customer_phone: string | null
+  fulfilment: 'counter' | 'delivery'
+  delivery_status: string | null
   total: string
   paid: string
   owed: string
@@ -127,6 +135,10 @@ export interface DailySummary {
   date: string
   sales_count: number
   sales_total: string
+  /** Of the sales total: delivery fees on orders created that day. */
+  delivery_fees: string
+  /** Signed total of fee edits made that day. */
+  fee_changes: string
   discounts: string
   cash_received: string
   upi_received: string
@@ -168,6 +180,8 @@ export interface PublicReceipt {
   lines: ReceiptLine[]
   subtotal: string
   order_discount: string
+  /** The delivery fee as it stands now; `0.00` for counter sales. */
+  delivery_fee: string
   total: string
   paid: string
   owed: string
@@ -189,6 +203,20 @@ export interface CheckoutPayment {
   amount: string
 }
 
+/** Money fields are strings; `collector` says who takes the money at the door. */
+export interface CheckoutDelivery {
+  recipient_name: string
+  recipient_phone: string
+  address_line: string
+  locality: string
+  landmark?: string
+  instructions?: string
+  fee: string
+  driver_pay?: string
+  collector: 'shop' | 'driver'
+  pay_method: 'retain_from_collection' | 'paid_by_shop'
+}
+
 export interface CheckoutBody {
   lines: CheckoutLine[]
   order_discount: string
@@ -196,6 +224,8 @@ export interface CheckoutBody {
   new_customer?: { phone: string; name?: string }
   payments: CheckoutPayment[]
   note?: string
+  /** Makes this a delivery order; needs a customer. */
+  delivery?: CheckoutDelivery
 }
 
 export interface CustomerPaymentBody {

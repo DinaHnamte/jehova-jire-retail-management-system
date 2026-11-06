@@ -34,6 +34,14 @@ describe('visibleNav', () => {
   })
 })
 
+describe('Deliveries nav', () => {
+  it('shows Deliveries after Sales with deliveries.read only', () => {
+    const labels = visibleNav((p) => p === 'orders.read' || p === 'deliveries.read').map((i) => i.label)
+    expect(labels).toEqual(['Overview', 'Sales', 'Deliveries', 'Customers'])
+    expect(visibleNav((p) => p === 'deliveries.read_own').map((i) => i.label)).not.toContain('Deliveries')
+  })
+})
+
 describe('splitForTabBar', () => {
   it('keeps up to five items as tabs', () => {
     expect(splitForTabBar([1, 2, 3, 4, 5])).toEqual({ tabs: [1, 2, 3, 4, 5], more: [] })

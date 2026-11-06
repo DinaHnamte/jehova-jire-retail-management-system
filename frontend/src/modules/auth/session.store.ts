@@ -22,6 +22,11 @@ export const useSessionStore = defineStore('session', {
   }),
   getters: {
     isLoggedIn: (s) => s.user !== null,
+    /** A driver: can see their own jobs but not the shop's (Ruling 11). */
+    isDriverOnly: (s) =>
+      !!s.user &&
+      s.user.permissions.includes('deliveries.read_own') &&
+      !s.user.permissions.includes('deliveries.read'),
   },
   actions: {
     can(perm: string): boolean {

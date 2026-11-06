@@ -6,13 +6,14 @@ export interface NavItem {
   icon: NavIconName
 }
 
-export type NavIconName = 'overview' | 'pos' | 'sales' | 'customers' | 'products' | 'stock' | 'users'
+export type NavIconName = 'overview' | 'pos' | 'sales' | 'deliveries' | 'customers' | 'products' | 'stock' | 'users'
 
 /** Main menu. Later phases append items (POS, Products, …). */
 export const navItems: NavItem[] = [
   { label: 'Overview', to: '/', icon: 'overview' },
   { label: 'Sell', to: '/pos', perm: 'orders.confirm', icon: 'pos' },
   { label: 'Sales', to: '/sales', perm: 'orders.read', icon: 'sales' },
+  { label: 'Deliveries', to: '/deliveries', perm: 'deliveries.read', icon: 'deliveries' },
   { label: 'Customers', to: '/customers', perm: 'orders.read', icon: 'customers' },
   { label: 'Products', to: '/products', perm: 'products.read', icon: 'products' },
   { label: 'Stock', to: '/stock', perm: 'inventory.read', icon: 'stock' },

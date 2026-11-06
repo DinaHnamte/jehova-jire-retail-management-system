@@ -37,6 +37,16 @@ export const router = createRouter({
           meta: { perm: 'orders.read', title: 'Sale' },
         },
         {
+          path: 'deliveries',
+          component: () => import('@/modules/deliveries/DeliveriesPage.vue'),
+          meta: { perm: 'deliveries.read', title: 'Deliveries' },
+        },
+        {
+          path: 'deliveries/:id',
+          component: () => import('@/modules/deliveries/DeliveryDetailPage.vue'),
+          meta: { perm: 'deliveries.read', title: 'Delivery' },
+        },
+        {
           path: 'customers',
           component: () => import('@/modules/customers/CustomersPage.vue'),
           meta: { perm: 'orders.read', title: 'Customers' },
@@ -115,13 +125,29 @@ export const router = createRouter({
         { path: ':pathMatch(.*)*', component: () => import('./NotFoundPage.vue'), meta: { title: 'Not found' } },
       ],
     },
+    {
+      path: '/driver',
+      component: () => import('./layouts/DriverLayout.vue'),
+      children: [
+        {
+          path: '',
+          component: () => import('@/modules/deliveries/DriverJobsPage.vue'),
+          meta: { perm: 'deliveries.read_own', title: 'My deliveries' },
+        },
+        {
+          path: 'deliveries/:id',
+          component: () => import('@/modules/deliveries/DriverJobPage.vue'),
+          meta: { perm: 'deliveries.read_own', title: 'Delivery' },
+        },
+      ],
+    },
   ],
 })
 
 router.beforeEach(async (to) => {
   const session = useSessionStore()
   if (needsSession(to) && !session.loaded) await session.load().catch(() => {})
-  return authGuard(to, { isLoggedIn: session.isLoggedIn, can: (p) => session.can(p) })
+  return authGuard(to, { isLoggedIn: session.isLoggedIn, isDriverOnly: session.isDriverOnly, can: (p) => session.can(p) })
 })
 
 router.onError((err, to) => {

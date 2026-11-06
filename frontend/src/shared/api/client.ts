@@ -70,7 +70,7 @@ export const api = {
   /** POST a non-JSON body (e.g. a CSV file) with its own content type. */
   postRaw: <T>(path: string, body: string, contentType: string) =>
     request<T>('POST', path, body, { rawContentType: contentType }),
-  patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
+  patch: <T>(path: string, body?: unknown, opts?: RequestOptions) => request<T>('PATCH', path, body, opts),
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   delete: <T>(path: string) => request<T>('DELETE', path),
 }
