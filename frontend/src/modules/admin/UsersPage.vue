@@ -4,6 +4,10 @@ import { api } from '@/shared/api/client'
 import { friendlyMessage } from '@/shared/api/errors'
 import Avatar from '@/shared/ui/Avatar.vue'
 import Badge, { type BadgeTone } from '@/shared/ui/Badge.vue'
+import { useSessionStore } from '@/modules/auth/session.store'
+import { formatRupees } from '@/shared/money'
+import DriverDialog from './DriverDialog.vue'
+import { listDrivers, updateDriver, type Driver } from './drivers-api'
 
 interface UserRow {
   id: string
@@ -26,7 +30,51 @@ const role = (code: string) => roles[code] ?? { name: code, tone: 'neutral' as B
 const users = ref<UserRow[] | null>(null)
 const error = ref<string | null>(null)
 
+const session = useSessionStore()
+const canDrivers = session.can('drivers.manage')
+const drivers = ref<Driver[] | null>(null)
+const driverError = ref<string | null>(null)
+const dialog = ref<InstanceType<typeof DriverDialog> | null>(null)
+const confirming = ref<Driver | null>(null)
+const confirmDialog = ref<HTMLDialogElement | null>(null)
+const busyId = ref<string | null>(null)
+
+async function loadDrivers() {
+  try {
+    drivers.value = await listDrivers()
+  } catch (e) {
+    driverError.value = friendlyMessage(e)
+  }
+}
+
+async function setActive(d: Driver, active: boolean) {
+  busyId.value = d.id
+  driverError.value = null
+  try {
+    await updateDriver(d.id, { is_active: active })
+    await loadDrivers()
+  } catch (e) {
+    driverError.value = friendlyMessage(e)
+  } finally {
+    busyId.value = null
+  }
+}
+
+function toggle(d: Driver) {
+  if (d.is_active && d.open_jobs > 0) {
+    confirming.value = d
+    confirmDialog.value?.showModal()
+  } else void setActive(d, !d.is_active)
+}
+
+function confirmDeactivate() {
+  const d = confirming.value
+  confirmDialog.value?.close()
+  if (d) void setActive(d, false)
+}
+
 onMounted(async () => {
+  if (canDrivers) void loadDrivers()
   try {
     users.value = await api.get<UserRow[]>('/users')
   } catch (e) {
@@ -39,6 +87,53 @@ onMounted(async () => {
   <h1 class="text-3xl font-extrabold">Users</h1>
   <p class="mt-1 text-muted">Everyone who can sign in, and what they're allowed to do.</p>
 
+  <section v-if="canDrivers" class="mt-6" aria-labelledby="drivers-h">
+    <div class="flex items-center justify-between gap-3">
+      <h2 id="drivers-h" class="text-xl font-bold">Drivers</h2>
+      <button type="button" class="btn-primary" @click="dialog?.open('add')">Add driver</button>
+    </div>
+    <p v-if="driverError" role="alert" class="mt-3 rounded-control bg-danger-tint px-4 py-3 font-medium text-danger">{{ driverError }}</p>
+    <p v-if="!drivers && !driverError" class="mt-3 text-muted">Loading drivers…</p>
+    <p v-else-if="drivers && !drivers.length" class="mt-3 text-muted">No drivers yet. Add one so deliveries can be assigned.</p>
+    <ul v-else-if="drivers" class="card mt-3 overflow-hidden">
+      <li v-for="d in drivers" :key="d.id" class="border-b border-line px-5 py-4 last:border-0">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="truncate font-bold">{{ d.display_name }}</p>
+            <p class="text-sm text-muted">{{ d.phone }} · {{ formatRupees(d.default_pay) }} per trip</p>
+            <p class="text-sm text-muted">{{ d.open_jobs }} open {{ d.open_jobs === 1 ? 'delivery' : 'deliveries' }}</p>
+          </div>
+          <Badge :tone="d.is_active ? 'sage' : 'danger'" dot>{{ d.is_active ? 'Active' : 'Inactive' }}</Badge>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button type="button" class="btn-secondary" @click="dialog?.open('edit', d)">Edit</button>
+          <button type="button" class="btn-secondary" @click="dialog?.open('password', d)">Reset password</button>
+          <button type="button" class="btn-secondary" :disabled="busyId === d.id" @click="toggle(d)">
+            {{ d.is_active ? 'Deactivate' : 'Reactivate' }}
+          </button>
+        </div>
+      </li>
+    </ul>
+    <DriverDialog ref="dialog" @saved="loadDrivers" />
+    <dialog
+      ref="confirmDialog"
+      aria-labelledby="deact-title"
+      class="m-auto w-[min(100%-2rem,28rem)] rounded-card border border-line bg-surface p-0 text-ink shadow-card backdrop:bg-ink/40"
+    >
+      <div class="p-5 sm:p-6">
+        <h2 id="deact-title" class="text-xl font-bold">Deactivate {{ confirming?.display_name }}?</h2>
+        <p class="mt-2 text-muted">
+          {{ confirming?.display_name }} has {{ confirming?.open_jobs }} open deliveries. They stay assigned until you reassign them.
+        </p>
+        <div class="mt-6 flex justify-end gap-2">
+          <button type="button" class="btn-secondary" @click="confirmDialog?.close()">Keep active</button>
+          <button type="button" class="btn-primary" @click="confirmDeactivate">Deactivate</button>
+        </div>
+      </div>
+    </dialog>
+  </section>
+
+  <h2 v-if="canDrivers" class="mt-8 text-xl font-bold">Staff</h2>
   <p v-if="error" role="alert" class="mt-6 rounded-control bg-danger-tint px-4 py-3 font-medium text-danger">{{ error }}</p>
   <p v-else-if="!users" class="mt-6 text-muted">Loading users…</p>
   <div v-else class="card mt-6 overflow-hidden">
