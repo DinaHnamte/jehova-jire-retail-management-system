@@ -201,4 +201,39 @@ describe('cart store: validation and keys', () => {
     localStorage.setItem('jj.cart.v1', JSON.stringify({ lines: [good] }))
     expect(fresh().lines).toHaveLength(1)
   })
+
+  describe('delivery', () => {
+    const setup = () => {
+      const c = fresh()
+      c.add(hit('a', '200.00'))
+      c.setFulfilment('delivery')
+      c.setDelivery({ ...c.delivery, recipientName: 'R', recipientPhone: '9862000000', addressLine: 'A', locality: 'L', fee: '50' })
+      return c
+    }
+    it('delivery total includes the fee; counter drops it', () => {
+      const c = setup()
+      expect(c.totals.total).toBe('250.00')
+      c.setFulfilment('counter')
+      expect(c.totals.total).toBe('200.00')
+      expect(c.toBody().delivery).toBeUndefined()
+    })
+    it('body carries the delivery block and the key follows it', () => {
+      const c = setup()
+      const k1 = c.chargeKey([])
+      expect(c.toBody().delivery?.fee).toBe('50.00')
+      expect(c.chargeKey([])).toBe(k1)
+      c.setDelivery({ ...c.delivery, fee: '60' })
+      expect(c.chargeKey([])).not.toBe(k1)
+    })
+    it('persists and clears after a sale', () => {
+      setup()
+      setActivePinia(createPinia())
+      const c = useCartStore()
+      expect(c.fulfilment).toBe('delivery')
+      expect(c.delivery.fee).toBe('50')
+      c.clear()
+      expect(c.fulfilment).toBe('counter')
+      expect(c.delivery.fee).toBe('')
+    })
+  })
 })

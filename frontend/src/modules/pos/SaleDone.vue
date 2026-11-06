@@ -25,8 +25,9 @@ defineEmits<{ newSale: [] }>()
     </dl>
     <p v-if="order.customer" class="mt-3 text-sm text-muted">For {{ order.customer.name || order.customer.phone }}</p>
     <div class="mt-6 grid gap-3">
-      <button v-if="order.whatsapp_url" type="button" class="btn-primary" @click="openWhatsApp(order.whatsapp_url)">Send on WhatsApp</button>
-      <button type="button" :class="order.whatsapp_url ? 'btn-secondary' : 'btn-primary'" @click="$emit('newSale')">New sale</button>
+      <RouterLink v-if="order.delivery" :to="`/deliveries/${order.delivery.id}`" class="btn-primary">Assign driver</RouterLink>
+      <button v-if="order.whatsapp_url" type="button" :class="order.delivery ? 'btn-secondary' : 'btn-primary'" @click="openWhatsApp(order.whatsapp_url)">Send on WhatsApp</button>
+      <button type="button" :class="order.whatsapp_url || order.delivery ? 'btn-secondary' : 'btn-primary'" @click="$emit('newSale')">New sale</button>
     </div>
   </section>
 </template>

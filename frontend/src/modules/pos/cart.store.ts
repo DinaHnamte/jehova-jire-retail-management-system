@@ -4,6 +4,7 @@ import type { CheckoutBody, CheckoutPayment, Customer } from './api'
 import { parseMoneyInput } from '@/shared/money'
 import { nextKey, type IssuedKey } from '@/shared/idempotency'
 import { cartProblems, cartTotals, type CartLine } from './cart'
+import { deliveryBody, emptyDraft, totalWithFee, type DeliveryDraft } from './delivery'
 
 const STORAGE_KEY = 'jj.cart.v1'
 
@@ -18,6 +19,8 @@ interface Persisted {
   customer: Customer | null
   newCustomer: NewCustomer | null
   key: IssuedKey | null
+  fulfilment: 'counter' | 'delivery'
+  delivery: DeliveryDraft
 }
 
 const MAX_QTY = 1_000_000
@@ -51,6 +54,20 @@ function load(): Partial<Persisted> {
   }
 }
 
+/** Only a draft whose every field has the right type is kept; otherwise it starts empty. */
+function loadDraft(d: unknown): DeliveryDraft {
+  const base = emptyDraft()
+  if (!d || typeof d !== 'object') return base
+  const x = d as Record<string, unknown>
+  for (const k of Object.keys(base) as (keyof DeliveryDraft)[]) {
+    if (typeof x[k] !== 'string') return base
+  }
+  const out = { ...base, ...(x as unknown as DeliveryDraft) }
+  if (out.collector !== 'driver' && out.collector !== 'shop') return base
+  if (out.payMethod !== 'retain_from_collection' && out.payMethod !== 'paid_by_shop') return base
+  return out
+}
+
 function save(s: Persisted) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
@@ -75,6 +92,7 @@ function buildBody(s: Persisted, payments: CheckoutPayment[]): CheckoutBody {
     const name = s.newCustomer.name.trim()
     body.new_customer = name ? { phone: s.newCustomer.phone, name } : { phone: s.newCustomer.phone }
   }
+  if (s.fulfilment === 'delivery') body.delivery = deliveryBody(s.delivery)
   return body
 }
 
@@ -92,10 +110,18 @@ export const useCartStore = defineStore('cart', {
       customer: d.customer ?? null,
       newCustomer: d.newCustomer ?? null,
       key: d.key ?? null,
+      fulfilment: d.fulfilment === 'delivery' ? 'delivery' : 'counter',
+      delivery: loadDraft(d.delivery),
     }
   },
   getters: {
-    totals: (s) => cartTotals(s.lines, s.orderDiscount),
+    /** Goods only, before any delivery fee. */
+    goods: (s) => cartTotals(s.lines, s.orderDiscount),
+    /** What the customer owes: goods, plus the delivery fee in delivery mode. */
+    totals(): ReturnType<typeof cartTotals> {
+      const t = this.goods
+      return this.fulfilment === 'delivery' ? { ...t, total: totalWithFee(t.total, this.delivery.fee) } : t
+    },
     /** Discounts the server would reject; Charge stays disabled while this is non-empty. */
     problems: (s) => cartProblems(s.lines, s.orderDiscount),
     valid(): boolean {
@@ -130,6 +156,8 @@ export const useCartStore = defineStore('cart', {
         customer: this.customer,
         newCustomer: this.newCustomer,
         key: this.key,
+        fulfilment: this.fulfilment,
+        delivery: this.delivery,
       })
     },
     /** Add one of a search hit; a product already in the cart gets +1. */
@@ -183,6 +211,14 @@ export const useCartStore = defineStore('cart', {
       if (n) this.customer = null
       this.persist()
     },
+    setFulfilment(f: 'counter' | 'delivery') {
+      this.fulfilment = f
+      this.persist()
+    },
+    setDelivery(d: DeliveryDraft) {
+      this.delivery = d
+      this.persist()
+    },
     remove(productId: string) {
       this.lines = this.lines.filter((l) => l.productId !== productId)
       this.persist()
@@ -192,6 +228,8 @@ export const useCartStore = defineStore('cart', {
       this.orderDiscount = '0.00'
       this.customer = null
       this.newCustomer = null
+      this.fulfilment = 'counter'
+      this.delivery = emptyDraft()
       this.key = null
       this.persist()
     },

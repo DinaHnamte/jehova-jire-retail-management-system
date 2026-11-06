@@ -298,6 +298,8 @@ export const listOrders = (q: OrderQuery = {}) => api.get<Page<OrderSummary>>(`/
 
 export const searchCustomers = (q: string, signal?: AbortSignal) =>
   api.get<Page<CustomerRow>>(`/customers${qs({ q })}`, { signal })
+/** The recipient and address of this customer's newest delivery; a 404 means they have none. */
+export const lastAddress = (id: string) => api.get<import('./delivery').LastAddress>(`/customers/${id}/last-address`)
 export const createCustomer = (b: { phone: string; name?: string; note?: string }) =>
   api.post<Customer>('/customers', b)
 export const getCustomer = (id: string) => api.get<CustomerDetail>(`/customers/${id}`)
