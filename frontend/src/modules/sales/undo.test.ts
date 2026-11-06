@@ -14,6 +14,23 @@ async function fresh() {
   return import('./undo')
 }
 
+describe('returnBody', () => {
+  const lines = [
+    { order_line_id: 'a', quantity: 0, disposition: 'sellable' as const },
+    { order_line_id: 'b', quantity: 2, disposition: 'damaged' as const },
+  ]
+
+  it('drops quantity-0 lines and omits a null refund method', async () => {
+    const { returnBody } = await fresh()
+    expect(returnBody(lines, null, '')).toEqual({ lines: [lines[1]] })
+  })
+
+  it('includes the refund method and a trimmed note when given', async () => {
+    const { returnBody } = await fresh()
+    expect(returnBody(lines, 'upi', '  torn  ')).toEqual({ lines: [lines[1]], refund_method: 'upi', note: 'torn' })
+  })
+})
+
 describe('undo keys', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', fakeStorage())

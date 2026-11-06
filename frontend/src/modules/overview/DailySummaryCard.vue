@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { friendlyMessage } from '@/shared/api/errors'
-import { formatRupees } from '@/shared/money'
+import { formatRupees, toPaise } from '@/shared/money'
 import { dailySummary, type DailySummary } from '@/modules/pos/api'
 import { todayIst } from '@/modules/sales/format'
 import { formatDay } from '@/modules/stock/format'
@@ -46,6 +46,20 @@ const figures = computed(() => {
     { label: 'Owed by all customers', value: formatRupees(d.total_owed), how: 'What every customer owes right now, whatever the date picked.' },
   ]
 })
+
+const undone = computed(() => {
+  const d = data.value
+  if (!d) return []
+  const items = [
+    { label: 'Sales cancelled', value: String(d.cancelled_count), zero: d.cancelled_count === 0, how: 'Number of sales cancelled that day.' },
+    { label: 'Cancelled total', value: formatRupees(d.cancelled_total), zero: toPaise(d.cancelled_total) === 0n, how: 'Add up the total of every sale cancelled that day.' },
+    { label: 'Returned', value: formatRupees(d.returns_total), zero: toPaise(d.returns_total) === 0n, how: 'Value of the items customers brought back that day, at the price they paid.' },
+    { label: 'Refunded in cash', value: formatRupees(d.refunds_cash), zero: toPaise(d.refunds_cash) === 0n, how: 'Cash handed back that day for cancels and returns.' },
+    { label: 'Refunded by UPI', value: formatRupees(d.refunds_upi), zero: toPaise(d.refunds_upi) === 0n, how: 'UPI sent back that day for cancels and returns.' },
+    { label: 'Owed reduced', value: formatRupees(d.owed_reduced), zero: toPaise(d.owed_reduced) === 0n, how: 'How much less customers owe because of cancels and returns.' },
+  ]
+  return items.some((i) => !i.zero) ? items : []
+})
 </script>
 
 <template>
@@ -72,5 +86,16 @@ const figures = computed(() => {
         <dd class="mt-1 text-xs text-muted">{{ f.how }}</dd>
       </div>
     </dl>
+
+    <div v-if="undone.length" class="mt-6" role="group" aria-labelledby="undone-h">
+      <h3 id="undone-h" class="text-lg font-bold">Undone today</h3>
+      <dl class="mt-3 grid gap-3 sm:grid-cols-2">
+        <div v-for="f in undone" :key="f.label" class="rounded-control bg-canvas px-4 py-3">
+          <dt class="text-sm font-semibold text-muted">{{ f.label }}</dt>
+          <dd class="figure mt-1 text-2xl">{{ f.value }}</dd>
+          <dd class="mt-1 text-xs text-muted">{{ f.how }}</dd>
+        </div>
+      </dl>
+    </div>
   </section>
 </template>

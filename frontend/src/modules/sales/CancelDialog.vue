@@ -6,7 +6,7 @@ import { cancelOrder } from '@/modules/pos/api'
 import { clearUndoKey, pendingUndoKey } from './undo'
 
 const props = defineProps<{ orderId: string; number: string; cash: string; upi: string }>()
-const emit = defineEmits<{ cancelled: [] }>()
+const emit = defineEmits<{ cancelled: []; stale: [] }>()
 
 const dialog = ref<HTMLDialogElement | null>(null)
 const reason = ref('')
@@ -26,6 +26,10 @@ function open() {
 }
 defineExpose({ open })
 
+function onCancel(e: Event) {
+  if (busy.value) e.preventDefault()
+}
+
 async function confirm() {
   error.value = null
   const r = reason.value.trim()
@@ -43,6 +47,8 @@ async function confirm() {
     else {
       // The server has answered for good, so a fresh attempt gets a fresh key.
       if (e instanceof ApiError && e.status >= 400 && e.status < 500) clearUndoKey(`cancel:${props.orderId}`)
+      // The sale changed under us (already cancelled, or returns were taken): refresh the page behind.
+      if (e instanceof ApiError && (e.code === 'ALREADY_CANCELLED' || e.code === 'HAS_RETURNS')) emit('stale')
       error.value = friendlyMessage(e)
     }
   } finally {
@@ -56,6 +62,7 @@ async function confirm() {
     ref="dialog"
     aria-labelledby="cancel-title"
     class="m-auto w-[min(100%-2rem,28rem)] rounded-card border border-line bg-surface p-0 text-ink shadow-card backdrop:bg-ink/40"
+    @cancel="onCancel"
   >
     <form class="p-5 sm:p-6" @submit.prevent="confirm">
       <h2 id="cancel-title" class="text-xl font-bold">Cancel {{ number }}?</h2>
@@ -70,7 +77,7 @@ async function confirm() {
       <p v-if="error" role="alert" class="mt-4 rounded-control bg-danger-tint px-4 py-3 font-medium text-danger">{{ error }}</p>
 
       <div class="mt-6 flex justify-end gap-2">
-        <button type="button" class="btn-secondary" @click="dialog?.close()">Keep sale</button>
+        <button type="button" class="btn-secondary" :disabled="busy" @click="dialog?.close()">Keep sale</button>
         <button type="submit" class="btn-primary" :disabled="busy">Cancel sale</button>
       </div>
     </form>

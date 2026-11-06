@@ -8,6 +8,7 @@ import { openWhatsApp } from '@/shared/whatsapp'
 import Badge from '@/shared/ui/Badge.vue'
 import PaymentDialog from '@/modules/customers/PaymentDialog.vue'
 import CancelDialog from './CancelDialog.vue'
+import ReturnDialog from './ReturnDialog.vue'
 import { getCustomer, getOrder, type OrderDetail } from '@/modules/pos/api'
 import { formatWhen } from '@/modules/stock/format'
 import { fmtPhone, statusLabel } from './format'
@@ -19,6 +20,7 @@ const customerOwes = ref('0.00')
 const error = ref<string | null>(null)
 const dialog = ref<InstanceType<typeof PaymentDialog> | null>(null)
 const cancelDialog = ref<InstanceType<typeof CancelDialog> | null>(null)
+const returnDialog = ref<InstanceType<typeof ReturnDialog> | null>(null)
 
 async function load() {
   error.value = null
@@ -37,6 +39,12 @@ const owed = computed(() => (order.value ? toPaise(order.value.owed) > 0n : fals
 const canPay = computed(() => owed.value && !!order.value?.customer && order.value.status !== 'cancelled' && session.can('payments.record'))
 const canCancel = computed(
   () => order.value?.status === 'confirmed' && order.value.returns.length === 0 && session.can('orders.void'),
+)
+const canReturn = computed(
+  () =>
+    order.value?.status === 'confirmed' &&
+    order.value.lines.some((l) => l.quantity - l.returned_quantity > 0) &&
+    session.can('returns.create'),
 )
 </script>
 
@@ -64,7 +72,7 @@ const canCancel = computed(
       <li v-for="l in order.lines" :key="l.product_id" class="grid grid-cols-[1fr_auto] gap-x-3 py-2.5">
         <div class="min-w-0">
           <p class="font-semibold">{{ l.product_name }}</p>
-          <p class="text-sm text-muted">{{ l.quantity }} × {{ formatRupees(l.unit_price) }}</p>
+          <p class="text-sm text-muted">{{ l.quantity }} × {{ formatRupees(l.unit_price) }}<template v-if="l.returned_quantity > 0"> · {{ l.returned_quantity }} returned</template></p>
         </div>
         <p class="figure self-center">{{ formatRupees(l.net_amount) }}</p>
       </li>
@@ -102,9 +110,28 @@ const canCancel = computed(
       </ul>
     </div>
 
+    <div v-if="order.returns.length" class="mt-4">
+      <h2 class="font-semibold">Returns</h2>
+      <ul class="mt-1 divide-y divide-line text-sm">
+        <li v-for="r in order.returns" :key="r.id" class="py-2">
+          <p class="flex justify-between text-muted">
+            <span>{{ formatWhen(r.created_at) }}</span>
+            <span class="figure">{{ formatRupees(r.amount) }}</span>
+          </p>
+          <p v-for="l in r.lines" :key="l.order_line_id" class="text-muted">
+            {{ l.quantity }} × {{ l.product_name }} ({{ l.disposition === 'damaged' ? 'damaged' : 'sellable' }})
+          </p>
+          <p v-if="toPaise(r.owed_reduced) > 0n" class="text-muted">Took {{ formatRupees(r.owed_reduced) }} off what they owed</p>
+          <p v-if="toPaise(r.refunded) > 0n" class="text-muted">Refunded {{ formatRupees(r.refunded) }}<template v-if="r.refund_method"> by {{ r.refund_method.toUpperCase() }}</template></p>
+          <p v-if="r.note" class="text-muted">Note: {{ r.note }}</p>
+        </li>
+      </ul>
+    </div>
+
     <div class="mt-6 grid gap-3">
       <button v-if="order.whatsapp_url" type="button" class="btn-primary" @click="openWhatsApp(order.whatsapp_url)">Send on WhatsApp</button>
       <button v-if="canPay" type="button" :class="order.whatsapp_url ? 'btn-secondary' : 'btn-primary'" @click="dialog?.open()">Record payment</button>
+      <button v-if="canReturn" type="button" class="btn-secondary" @click="returnDialog?.open()">Return items</button>
       <button v-if="canCancel" type="button" class="btn-secondary" @click="cancelDialog?.open()">Cancel sale</button>
     </div>
   </section>
@@ -117,6 +144,16 @@ const canCancel = computed(
     :cash="order.paid_by_method.cash"
     :upi="order.paid_by_method.upi"
     @cancelled="load"
+    @stale="load"
+  />
+  <ReturnDialog
+    v-if="order"
+    ref="returnDialog"
+    :order-id="order.id"
+    :number="order.number"
+    :lines="order.lines"
+    @returned="load"
+    @stale="load"
   />
   <PaymentDialog v-if="order?.customer" ref="dialog" :customer-id="order.customer.id" :owes="customerOwes" @saved="load" />
 </template>

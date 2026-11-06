@@ -257,10 +257,10 @@ export const checkout = (body: CheckoutBody, key: string) =>
 export const cancelOrder = (id: string, body: CancelBody, key: string) =>
   api.post<OrderDetail>(`/orders/${id}/cancel`, body, idem(key))
 /** Without a key (a preview changes nothing); with one, the return is recorded. */
-export function returnItems(id: string, body: ReturnBody & { preview: true }): Promise<ReturnPreview>
+export function returnItems(id: string, body: ReturnBody & { preview: true }, key?: undefined, signal?: AbortSignal): Promise<ReturnPreview>
 export function returnItems(id: string, body: ReturnBody, key: string): Promise<OrderDetail>
-export function returnItems(id: string, body: ReturnBody, key?: string): Promise<ReturnPreview | OrderDetail> {
-  return api.post(`/orders/${id}/returns`, body, key ? idem(key) : undefined)
+export function returnItems(id: string, body: ReturnBody, key?: string, signal?: AbortSignal): Promise<ReturnPreview | OrderDetail> {
+  return api.post(`/orders/${id}/returns`, body, { ...(key ? idem(key) : {}), signal })
 }
 export const getOrder = (id: string) => api.get<OrderDetail>(`/orders/${id}`)
 export const listOrders = (q: OrderQuery = {}) => api.get<Page<OrderSummary>>(`/orders${qs({ ...q })}`)

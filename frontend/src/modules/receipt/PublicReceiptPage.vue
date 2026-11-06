@@ -54,6 +54,20 @@ const owed = computed(() => (receipt.value ? toPaise(receipt.value.owed) > 0n : 
         </li>
       </ul>
 
+      <div v-if="receipt.returned.length" class="mt-4">
+        <h2 class="font-semibold">Returned</h2>
+        <ul class="mt-1 divide-y divide-line border-y border-line">
+          <li v-for="(l, i) in receipt.returned" :key="i" class="grid grid-cols-[1fr_auto] gap-x-3 py-2.5">
+            <div class="min-w-0">
+              <p class="font-semibold">{{ l.name }}</p>
+              <p v-if="l.code" class="text-sm text-muted">{{ l.code }}</p>
+              <p class="text-sm text-muted">{{ l.quantity }} returned</p>
+            </div>
+            <p class="figure self-center">{{ formatRupees(l.amount) }}</p>
+          </li>
+        </ul>
+      </div>
+
       <dl class="mt-3 grid grid-cols-[1fr_auto] gap-y-1.5">
         <template v-if="toPaise(receipt.order_discount) > 0n">
           <dt class="text-muted">Subtotal</dt><dd class="figure">{{ formatRupees(receipt.subtotal) }}</dd>
@@ -62,6 +76,9 @@ const owed = computed(() => (receipt.value ? toPaise(receipt.value.owed) > 0n : 
         <dt class="font-bold">Total</dt><dd class="figure text-xl">{{ formatRupees(receipt.total) }}</dd>
         <dt class="text-muted">Paid</dt><dd class="figure">{{ formatRupees(receipt.paid) }}</dd>
         <dt class="text-muted">Owed</dt><dd class="figure" :class="owed ? 'font-bold text-golden-ink' : ''">{{ formatRupees(receipt.owed) }}</dd>
+        <template v-if="toPaise(receipt.refunded) > 0n">
+          <dt class="text-muted">Refunded</dt><dd class="figure">{{ formatRupees(receipt.refunded) }}</dd>
+        </template>
       </dl>
       <p class="mt-5 text-center text-sm text-muted">Thank you for shopping with us.</p>
     </section>
