@@ -26,6 +26,7 @@ const previewing = ref(false)
 const error = ref<string | null>(null)
 const errors = reactive<Record<string, string>>({})
 const busy = ref(false)
+const previewFailed = ref(false)
 
 const scope = computed(() => `return:${props.orderId}`)
 
@@ -43,6 +44,7 @@ function open() {
   method.value = null
   note.value = ''
   preview.value = null
+  previewFailed.value = false
   clearErrors()
   dialog.value?.showModal()
 }
@@ -60,6 +62,7 @@ function step(r: Row, by: number) {
 const anyQty = computed(() => rows.value.some((r) => r.quantity > 0))
 const refund = computed(() => (preview.value ? toPaise(preview.value.refund) : 0n))
 const needsMethod = computed(() => refund.value > 0n)
+const ready = computed(() => anyQty.value && !!preview.value && !previewing.value && !previewFailed.value)
 const owedReduced = computed(() => (preview.value ? toPaise(preview.value.owed_reduced) : 0n))
 
 // The sent lines are the rows with a quantity, in dialog order; this maps a server `lines[i]` back to a row.
@@ -93,6 +96,7 @@ watch(
     clearErrors()
     preview.value = null
     previewing.value = false
+    previewFailed.value = false
     if (!anyQty.value) return
     previewing.value = true
     const mine = seq
@@ -107,16 +111,19 @@ watch(
       } catch (e) {
         if (mine !== seq) return
         previewing.value = false
-        showError(e)
+        previewFailed.value = true
+        showError(e, true)
       }
     }, 300)
   },
 )
 onBeforeUnmount(cancelPreview)
 
-function showError(e: unknown) {
+function showError(e: unknown, fromPreview = false) {
   if (e instanceof ApiError && e.code === 'NETWORK_ERROR') {
-    error.value = "No connection. Press Return items again — it won't return twice."
+    error.value = fromPreview
+      ? "Couldn't work out the refund. Check your connection."
+      : "No connection. Press Return items again — it won't return twice."
     return
   }
   if (e instanceof ApiError && (e.code === 'ALREADY_CANCELLED' || e.code === 'HAS_RETURNS')) emit('stale')
@@ -137,6 +144,7 @@ function onCancel(e: Event) {
 }
 
 async function confirm() {
+  if (busy.value) return
   clearErrors()
   if (!anyQty.value) {
     error.value = 'Choose how many to return.'
@@ -214,7 +222,7 @@ async function confirm() {
         </template>
       </div>
 
-      <fieldset v-if="needsMethod" class="mt-4" :disabled="busy">
+      <fieldset v-if="needsMethod || errors.method" class="mt-4" :disabled="busy">
         <legend class="font-semibold">Refund by</legend>
         <div class="mt-2 grid grid-cols-2 gap-2">
           <label
@@ -227,20 +235,20 @@ async function confirm() {
             <span class="font-semibold">{{ m === 'cash' ? 'Cash' : 'UPI' }}</span>
           </label>
         </div>
-        <span v-if="errors.method" class="mt-1 block text-sm font-medium text-danger">{{ errors.method }}</span>
+        <span v-if="errors.method" role="alert" class="mt-1 block text-sm font-medium text-danger">{{ errors.method }}</span>
       </fieldset>
 
       <label class="mt-4 block">
         <span class="font-semibold">Note <span class="font-normal text-muted">(optional)</span></span>
         <input v-model="note" class="field mt-1" maxlength="500" autocomplete="off" :disabled="busy" :aria-invalid="!!errors.note" />
-        <span v-if="errors.note" class="mt-1 block text-sm font-medium text-danger">{{ errors.note }}</span>
+        <span v-if="errors.note" role="alert" class="mt-1 block text-sm font-medium text-danger">{{ errors.note }}</span>
       </label>
 
       <p v-if="error" role="alert" class="mt-4 rounded-control bg-danger-tint px-4 py-3 font-medium text-danger">{{ error }}</p>
 
       <div class="mt-6 flex justify-end gap-2">
         <button type="button" class="btn-secondary" :disabled="busy" @click="dismiss">Close</button>
-        <button type="submit" class="btn-primary" :disabled="busy || !anyQty">Return items</button>
+        <button type="submit" class="btn-primary" :disabled="busy || !ready">Return items</button>
       </div>
     </form>
   </dialog>
