@@ -6,6 +6,7 @@ use axum::{
 use serde_json::json;
 use uuid::Uuid;
 
+use crate::deliveries::domain::{Status, status_label};
 use crate::http::request_id;
 
 /// Every API error. Rendered as `{ "error": { code, message, details, request_id } }`.
@@ -149,6 +150,35 @@ impl AppError {
         Self::already_done(
             "HAS_RETURNS",
             "Some items were already returned. Return the rest instead.",
+        )
+    }
+
+    /// 409: the delivery can't take that step from its current status.
+    pub fn delivery_status(current: Status) -> Self {
+        Self::Coded {
+            status: StatusCode::CONFLICT,
+            code: "DELIVERY_STATUS",
+            message: format!(
+                "This delivery is {}. That step isn't possible now.",
+                status_label(current).to_lowercase()
+            ),
+            details: json!({ "status": current.as_str() }),
+        }
+    }
+
+    /// 409: the order is out with a driver, so it can't be cancelled yet.
+    pub fn delivery_out() -> Self {
+        Self::already_done(
+            "DELIVERY_OUT",
+            "This delivery is out with the driver. Mark it delivered or couldn't deliver first.",
+        )
+    }
+
+    /// 409: items can only be returned once the delivery is delivered.
+    pub fn delivery_not_done() -> Self {
+        Self::already_done(
+            "DELIVERY_NOT_DONE",
+            "Items can be returned once the delivery is done.",
         )
     }
 
@@ -296,5 +326,16 @@ mod tests {
             (d.status(), d.code()),
             (StatusCode::CONFLICT, "ALREADY_CONFIRMED")
         );
+    }
+
+    #[test]
+    fn delivery_errors() {
+        let e = AppError::delivery_status(Status::PickedUp);
+        assert_eq!(
+            (e.status(), e.code()),
+            (StatusCode::CONFLICT, "DELIVERY_STATUS")
+        );
+        assert_eq!(AppError::delivery_out().code(), "DELIVERY_OUT");
+        assert_eq!(AppError::delivery_not_done().code(), "DELIVERY_NOT_DONE");
     }
 }
