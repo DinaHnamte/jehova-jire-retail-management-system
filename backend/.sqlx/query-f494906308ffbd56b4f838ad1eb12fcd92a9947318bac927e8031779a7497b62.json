@@ -1,0 +1,206 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.id, d.order_id, o.number AS order_number, d.status, d.recipient_name,\n                  d.recipient_phone, d.address_line, d.locality, d.landmark, d.instructions,\n                  d.collector, d.pay_method, d.driver_pay, d.current_driver_id,\n                  (o.total - o.delivery_fee + d.fee) AS \"total!\",\n                  COALESCE((SELECT max(a.ended_at) FROM delivery_assignments a\n                             WHERE a.delivery_id = d.id AND a.driver_id = $2),\n                           d.delivered_at, d.closed_at, d.updated_at) AS \"at!\",\n                  EXISTS (SELECT 1 FROM delivery_assignments a\n                           WHERE a.delivery_id = d.id AND a.driver_id = $2) AS \"had!\"\n           FROM deliveries d JOIN orders o ON o.id = d.order_id\n           WHERE d.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "order_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "order_number",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "orders",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "recipient_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "recipient_name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "recipient_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "recipient_phone"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "address_line",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "address_line"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "locality",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "locality"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "landmark",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "landmark"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "instructions",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "instructions"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "collector",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "collector"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "pay_method",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "pay_method"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "driver_pay",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "driver_pay"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "current_driver_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "current_driver_id"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "total!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 15,
+        "name": "at!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 16,
+        "name": "had!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "f494906308ffbd56b4f838ad1eb12fcd92a9947318bac927e8031779a7497b62"
+}

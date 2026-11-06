@@ -2,6 +2,7 @@
 pub mod actions;
 pub mod close;
 pub mod domain;
+pub mod driver;
 pub mod input;
 pub mod messages;
 pub mod read;
@@ -73,4 +74,7 @@ pub fn router() -> Router<AppState> {
         .route("/deliveries/{id}/retry", post(actions::retry_route))
         .route("/deliveries/{id}/cancel", post(close::cancel_route))
         .route("/deliveries/{id}/check-in", post(close::check_in_route))
+        .route("/me/deliveries", get(driver::list_route))
+        .route("/me/deliveries/{id}", get(driver::get_route))
+        .route("/me/deliveries/{id}/status", post(driver::status_route))
 }

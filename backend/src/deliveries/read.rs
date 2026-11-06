@@ -23,7 +23,7 @@ pub(crate) fn money(d: Decimal) -> String {
 }
 
 /// What the driver collects at the door: what is owed when the driver collects, else nothing.
-fn to_collect(collector: &str, owed: Decimal) -> Decimal {
+pub(crate) fn to_collect(collector: &str, owed: Decimal) -> Decimal {
     if collector == "driver" {
         owed.max(Decimal::ZERO)
     } else {
