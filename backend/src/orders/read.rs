@@ -184,17 +184,40 @@ pub struct PublicReceipt {
     pub cancelled: bool,
 }
 
-/// A cancelled sale is `cancelled`. Otherwise `owed == 0` is paid (also for a 0 bill); `owed == total` is unpaid; anything between is partly.
-pub fn payment_status(status: &str, total: Decimal, owed: Decimal) -> &'static str {
+/// A cancelled sale is `cancelled`. Otherwise, with nothing owed it is `paid` (also for a 0 bill),
+/// unless returns gave back the whole total, which is `returned`. With something owed, nothing paid
+/// (net of refunds) is `unpaid` and anything else is `partly_paid`. Returns shrink what is owed, so
+/// the original total is never compared with what is owed.
+pub fn payment_status(
+    status: &str,
+    total: Decimal,
+    owed: Decimal,
+    paid: Decimal,
+    returned: Decimal,
+) -> &'static str {
     if status == "cancelled" {
         "cancelled"
     } else if owed.is_zero() {
-        "paid"
-    } else if owed == total {
+        if returned > Decimal::ZERO && returned == total {
+            "returned"
+        } else {
+            "paid"
+        }
+    } else if paid.is_zero() {
         "unpaid"
     } else {
         "partly_paid"
     }
+}
+
+/// Sum of all returns taken on an order.
+async fn returned_total(conn: &mut PgConnection, order_id: Uuid) -> AppResult<Decimal> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT COALESCE(SUM(amount), 0) AS "n!" FROM returns WHERE order_id = $1"#,
+        order_id
+    )
+    .fetch_one(conn)
+    .await?)
 }
 
 pub(crate) async fn shop_name(conn: &mut PgConnection) -> AppResult<String> {
@@ -517,7 +540,8 @@ pub async fn order_detail(
         }
         None => None,
     };
-    let payment_status = payment_status(&o.status, o.total, owed);
+    let returned = returned_total(conn, id).await?;
+    let payment_status = payment_status(&o.status, o.total, owed, paid, returned);
     Ok(OrderDetail {
         id: o.id,
         number: o.number,
@@ -598,6 +622,8 @@ pub enum PaidFilter {
     Paid,
     PartlyPaid,
     Unpaid,
+    /// Everything given back: nothing owed and returns equal the total.
+    Returned,
 }
 
 impl PaidFilter {
@@ -606,6 +632,7 @@ impl PaidFilter {
             Self::Paid => "paid",
             Self::PartlyPaid => "partly_paid",
             Self::Unpaid => "unpaid",
+            Self::Returned => "returned",
         }
     }
 }
@@ -659,12 +686,24 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
            FROM orders o
            CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e
                                WHERE e.account = 'receivable' AND e.ref_id = o.id) r
+           CROSS JOIN LATERAL (SELECT COALESCE((SELECT -SUM(e.amount) FROM ledger_entries e
+                                                 JOIN ledger_transactions t ON t.id = e.transaction_id
+                                                WHERE t.kind = 'payment' AND e.account = 'receivable'
+                                                  AND e.ref_id = o.id), 0)
+                                    - COALESCE((SELECT -SUM(e.amount) FROM ledger_entries e
+                                                 JOIN ledger_transactions t ON t.id = e.transaction_id
+                                                WHERE t.kind = 'refund' AND t.order_id = o.id
+                                                  AND e.account IN ('cash', 'upi')), 0) AS paid) pd
+           CROSS JOIN LATERAL (SELECT COALESCE(SUM(x.amount), 0) AS returned FROM returns x
+                               WHERE x.order_id = o.id) rt
            WHERE ($1::timestamptz IS NULL OR o.created_at >= $1)
              AND ($2::timestamptz IS NULL OR o.created_at < $2)
              AND ($3::uuid IS NULL OR o.customer_id = $3)
              AND ($4::text IS NULL OR (o.status = 'confirmed'
-                                       AND $4 = CASE WHEN r.owed = 0 THEN 'paid'
-                                                     WHEN r.owed = o.total THEN 'unpaid'
+                                       AND $4 = CASE WHEN r.owed = 0 AND rt.returned > 0
+                                                          AND rt.returned = o.total THEN 'returned'
+                                                     WHEN r.owed = 0 THEN 'paid'
+                                                     WHEN pd.paid = 0 THEN 'unpaid'
                                                      ELSE 'partly_paid' END))
              AND ($5::text IS NULL OR o.status = $5)"#,
         from,
@@ -678,24 +717,29 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
     let rows = sqlx::query!(
         r#"SELECT o.id, o.number, o.status, o.created_at, o.customer_id, o.total,
                   c.name AS "customer_name?", c.phone AS "customer_phone?", r.owed AS "owed!",
-                  (COALESCE((SELECT -SUM(e.amount) FROM ledger_entries e
-                              JOIN ledger_transactions t ON t.id = e.transaction_id
-                             WHERE t.kind = 'payment' AND e.account = 'receivable'
-                               AND e.ref_id = o.id), 0)
-                   - COALESCE((SELECT -SUM(e.amount) FROM ledger_entries e
-                                JOIN ledger_transactions t ON t.id = e.transaction_id
-                               WHERE t.kind = 'refund' AND t.order_id = o.id
-                                 AND e.account IN ('cash', 'upi')), 0)) AS "paid!"
+                  pd.paid AS "paid!", rt.returned AS "returned!"
            FROM orders o
            LEFT JOIN customers c ON c.id = o.customer_id
            CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e
                                WHERE e.account = 'receivable' AND e.ref_id = o.id) r
+           CROSS JOIN LATERAL (SELECT COALESCE((SELECT -SUM(e.amount) FROM ledger_entries e
+                                                 JOIN ledger_transactions t ON t.id = e.transaction_id
+                                                WHERE t.kind = 'payment' AND e.account = 'receivable'
+                                                  AND e.ref_id = o.id), 0)
+                                    - COALESCE((SELECT -SUM(e.amount) FROM ledger_entries e
+                                                 JOIN ledger_transactions t ON t.id = e.transaction_id
+                                                WHERE t.kind = 'refund' AND t.order_id = o.id
+                                                  AND e.account IN ('cash', 'upi')), 0) AS paid) pd
+           CROSS JOIN LATERAL (SELECT COALESCE(SUM(x.amount), 0) AS returned FROM returns x
+                               WHERE x.order_id = o.id) rt
            WHERE ($1::timestamptz IS NULL OR o.created_at >= $1)
              AND ($2::timestamptz IS NULL OR o.created_at < $2)
              AND ($3::uuid IS NULL OR o.customer_id = $3)
              AND ($4::text IS NULL OR (o.status = 'confirmed'
-                                       AND $4 = CASE WHEN r.owed = 0 THEN 'paid'
-                                                     WHEN r.owed = o.total THEN 'unpaid'
+                                       AND $4 = CASE WHEN r.owed = 0 AND rt.returned > 0
+                                                          AND rt.returned = o.total THEN 'returned'
+                                                     WHEN r.owed = 0 THEN 'paid'
+                                                     WHEN pd.paid = 0 THEN 'unpaid'
                                                      ELSE 'partly_paid' END))
              AND ($5::text IS NULL OR o.status = $5)
            ORDER BY o.created_at DESC, o.id DESC
@@ -713,7 +757,7 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
     let items = rows
         .into_iter()
         .map(|r| OrderSummary {
-            payment_status: payment_status(&r.status, r.total, r.owed),
+            payment_status: payment_status(&r.status, r.total, r.owed, r.paid, r.returned),
             id: r.id,
             number: r.number,
             status: r.status,

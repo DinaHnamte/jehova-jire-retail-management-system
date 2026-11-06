@@ -361,3 +361,68 @@ async fn stock_check_flags_cancelled_order_with_owed(pool: PgPool) {
         json!([{"kind": "receivable_out_of_range", "order_id": order_id, "owed": "10.00"}])
     );
 }
+
+#[sqlx::test]
+async fn stock_check_bounds_owed_by_total_less_returns(pool: PgPool) {
+    let (a, s) = boss(&pool).await;
+    let p = a.product(&s, "B 6143-8", "Bowl").await;
+    count(&a, &s, json!([{"product_id": p, "counted": 4}])).await;
+    let post = |path: String, key: &'static str, body: Value| {
+        let (a, s) = (&a, &s);
+        async move {
+            a.send(
+                axum::http::Request::post(path)
+                    .header("content-type", "application/json")
+                    .header("cookie", &s.cookie)
+                    .header("x-csrf-token", &s.csrf)
+                    .header("idempotency-key", key)
+                    .body(axum::body::Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+        }
+    };
+    // Two Bowls at 150 on credit: owed 300.
+    let r = post(
+        "/api/v1/orders/checkout".into(),
+        "key-ret-0001",
+        json!({"lines": [{"product_id": p, "quantity": 2}], "new_customer": {"phone": "9862033333"}}),
+    )
+    .await;
+    assert_eq!(r.status(), 201, "{:?}", r.json());
+    let order_id = r.json()["id"].as_str().unwrap().to_string();
+    let line_id: uuid::Uuid =
+        sqlx::query_scalar("SELECT id FROM order_lines WHERE order_id = $1::uuid")
+            .bind(&order_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    // One back: owed 150, and at most 150 can still be owed.
+    let ret = post(
+        format!("/api/v1/orders/{order_id}/returns"),
+        "key-ret-0002",
+        json!({"lines": [{"order_line_id": line_id, "quantity": 1, "disposition": "sellable"}]}),
+    )
+    .await;
+    assert_eq!(ret.status(), 201, "{:?}", ret.json());
+    assert_eq!(run_check(&a, &s).await["mismatches"], json!([]));
+
+    // A balanced transaction that adds 10 to what is owed: 160 is under the total 300 but over 150.
+    sqlx::query(
+        "WITH t AS (INSERT INTO ledger_transactions (id, kind, order_id, method, actor_id, idempotency_key)
+                    SELECT gen_random_uuid(), 'payment', $1::uuid, 'cash', created_by, 'plant-ret-1'
+                    FROM orders WHERE id = $1::uuid RETURNING id)
+         INSERT INTO ledger_entries (id, transaction_id, account, ref_id, amount)
+         SELECT gen_random_uuid(), t.id, 'cash', NULL, -10 FROM t
+         UNION ALL SELECT gen_random_uuid(), t.id, 'receivable', $1::uuid, 10 FROM t",
+    )
+    .bind(&order_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let v = run_check(&a, &s).await;
+    assert_eq!(
+        v["mismatches"],
+        json!([{"kind": "receivable_out_of_range", "order_id": order_id, "owed": "160.00"}])
+    );
+}

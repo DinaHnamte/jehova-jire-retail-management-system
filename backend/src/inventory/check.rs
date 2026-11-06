@@ -26,7 +26,7 @@ pub enum Mismatch {
     },
     /// A ledger transaction whose entries do not add up to 0.
     LedgerUnbalanced { transaction_id: Uuid },
-    /// A confirmed order that is owed less than nothing, or more than its total.
+    /// A confirmed order that is owed less than nothing, or more than its total less its returns.
     ReceivableOutOfRange { order_id: Uuid, owed: String },
 }
 
@@ -93,7 +93,9 @@ pub async fn run(db: &PgPool) -> AppResult<CheckRun> {
            FROM orders o
            CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e
                                WHERE e.account = 'receivable' AND e.ref_id = o.id) r
-           WHERE (o.status = 'confirmed' AND (r.owed < 0 OR r.owed > o.total))
+           CROSS JOIN LATERAL (SELECT COALESCE(SUM(x.amount), 0) AS returned FROM returns x
+                               WHERE x.order_id = o.id) rt
+           WHERE (o.status = 'confirmed' AND (r.owed < 0 OR r.owed > o.total - rt.returned))
               OR (o.status = 'cancelled' AND r.owed <> 0)
            ORDER BY o.id"#
     )

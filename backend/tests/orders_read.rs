@@ -617,3 +617,84 @@ async fn later_customer_payment_counts_only_its_share(pool: PgPool) {
         json!({"cash": "0.00", "upi": "100.00"})
     );
 }
+
+/// Two Plates at 100 on credit for a customer, nothing paid.
+async fn unpaid(sh: &Shop, phone: &str) -> Value {
+    checkout(
+        sh,
+        json!({"lines": [{"product_id": sh.p[0], "quantity": 2}],
+               "new_customer": {"phone": phone}}),
+    )
+    .await
+    .json()
+}
+
+async fn status_of(sh: &Shop, order: &Value) -> (Value, Value) {
+    let id = order["id"].as_str().unwrap();
+    let d = get(sh, &sh.cashier, &format!("/api/v1/orders/{id}"))
+        .await
+        .json();
+    let list = get(sh, &sh.cashier, "/api/v1/orders").await.json();
+    let row = list["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["id"] == order["id"])
+        .unwrap()
+        .clone();
+    (d["payment_status"].clone(), row["payment_status"].clone())
+}
+
+async fn filter_ids(sh: &Shop, paid: &str) -> Vec<Value> {
+    get(sh, &sh.cashier, &format!("/api/v1/orders?paid={paid}"))
+        .await
+        .json()["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["id"].clone())
+        .collect()
+}
+
+#[sqlx::test]
+async fn unpaid_sale_with_partial_return_stays_unpaid(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = unpaid(&sh, "9862011111").await;
+    give_back(&sh, &pool, &o, 1, None).await;
+    assert_eq!(status_of(&sh, &o).await, (json!("unpaid"), json!("unpaid")));
+    assert_eq!(filter_ids(&sh, "unpaid").await, vec![o["id"].clone()]);
+    assert!(filter_ids(&sh, "partly_paid").await.is_empty());
+}
+
+#[sqlx::test]
+async fn fully_returned_sale_is_returned(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let credit = unpaid(&sh, "9862022222").await;
+    give_back(&sh, &pool, &credit, 2, None).await;
+    let cash = split_paid(&sh).await;
+    give_back(&sh, &pool, &cash, 2, Some("cash")).await;
+    assert_eq!(
+        status_of(&sh, &credit).await,
+        (json!("returned"), json!("returned"))
+    );
+    assert_eq!(
+        status_of(&sh, &cash).await,
+        (json!("returned"), json!("returned"))
+    );
+    let returned = filter_ids(&sh, "returned").await;
+    assert_eq!(returned.len(), 2);
+    assert!(filter_ids(&sh, "paid").await.is_empty());
+    assert!(filter_ids(&sh, "unpaid").await.is_empty());
+}
+
+#[sqlx::test]
+async fn part_paid_sale_with_partial_return_is_partly_paid(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = part_paid(&sh).await;
+    give_back(&sh, &pool, &o, 1, None).await;
+    assert_eq!(
+        status_of(&sh, &o).await,
+        (json!("partly_paid"), json!("partly_paid"))
+    );
+    assert_eq!(filter_ids(&sh, "partly_paid").await, vec![o["id"].clone()]);
+}
