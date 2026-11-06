@@ -698,3 +698,133 @@ async fn part_paid_sale_with_partial_return_is_partly_paid(pool: PgPool) {
     );
     assert_eq!(filter_ids(&sh, "partly_paid").await, vec![o["id"].clone()]);
 }
+
+mod delivery_fee {
+    use super::common::shop::*;
+    use serde_json::json;
+    use sqlx::PgPool;
+
+    #[sqlx::test]
+    async fn detail_shows_current_fee_and_total_after_edit(pool: PgPool) {
+        let sh = shop(&pool).await;
+        let o = delivery_sale(&sh, "50", "150").await;
+        let did = delivery_id(&pool, &o).await;
+        let id = o["id"].as_str().unwrap();
+        let v = get_json(&sh, &format!("/api/v1/orders/{id}")).await;
+        assert_eq!(
+            (v["total"].as_str(), v["delivery_fee"].as_str()),
+            (Some("150.00"), Some("50.00"))
+        );
+        assert_eq!(v["fulfilment"], "delivery");
+        assert_eq!(v["delivery"]["id"], did);
+        assert_eq!(v["delivery"]["status"], "to_send");
+        assert!(v["delivery"]["driver_name"].is_null());
+
+        set_fee(&sh, &did, "80").await;
+        let v = get_json(&sh, &format!("/api/v1/orders/{id}")).await;
+        assert_eq!(v["total"], "180.00");
+        assert_eq!(v["delivery_fee"], "80.00");
+        assert_eq!(v["owed"], "30.00");
+        assert_eq!(v["payment_status"], "partly_paid");
+        // The list agrees.
+        let l = get_json(&sh, "/api/v1/orders").await;
+        assert_eq!(l["items"][0]["total"], "180.00");
+        assert_eq!(l["items"][0]["fulfilment"], "delivery");
+        assert_eq!(l["items"][0]["delivery_status"], "to_send");
+    }
+
+    #[sqlx::test]
+    async fn detail_names_the_driver_and_counter_sales_have_no_delivery(pool: PgPool) {
+        let sh = shop(&pool).await;
+        let o = delivery_sale(&sh, "50", "150").await;
+        let did = delivery_id(&pool, &o).await;
+        let lal = add_driver(&sh).await;
+        advance(&sh, &did, &lal, "picked_up").await;
+        let id = o["id"].as_str().unwrap();
+        let v = get_json(&sh, &format!("/api/v1/orders/{id}")).await;
+        assert_eq!(v["delivery"]["status"], "picked_up");
+        assert_eq!(v["delivery"]["driver_name"], "Lalbiaka");
+
+        let c = sell(
+            &sh,
+            json!({"lines": [{"product_id": sh.p, "quantity": 1}],
+                   "payments": [{"method": "cash", "amount": "100"}]}),
+        )
+        .await;
+        let v = get_json(
+            &sh,
+            &format!("/api/v1/orders/{}", c["id"].as_str().unwrap()),
+        )
+        .await;
+        assert_eq!(v["fulfilment"], "counter");
+        assert_eq!(v["delivery_fee"], "0.00");
+        assert!(v["delivery"].is_null());
+    }
+
+    #[sqlx::test]
+    async fn fully_returned_delivery_order_is_returned_status(pool: PgPool) {
+        let sh = shop(&pool).await;
+        let o = delivery_sale(&sh, "50", "150").await;
+        let did = delivery_id(&pool, &o).await;
+        let lal = add_driver(&sh).await;
+        advance(&sh, &did, &lal, "delivered").await;
+        let id = o["id"].as_str().unwrap();
+        let line: uuid::Uuid = sqlx::query_scalar("SELECT id FROM order_lines")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let r = post(
+            &sh.a,
+            &sh.c,
+            &format!("/api/v1/orders/{id}/returns"),
+            &key(),
+            json!({"lines": [{"order_line_id": line, "quantity": 1, "disposition": "sellable"}],
+                   "refund_method": "cash"}),
+        )
+        .await;
+        assert_eq!(r.status(), 201, "{:?}", r.json());
+        let v = get_json(&sh, &format!("/api/v1/orders/{id}")).await;
+        assert_eq!(v["total"], "150.00");
+        assert_eq!(v["owed"], "0.00");
+        assert_eq!(v["payment_status"], "returned");
+        let l = get_json(&sh, "/api/v1/orders?paid=returned").await;
+        assert_eq!(l["items"].as_array().unwrap().len(), 1);
+    }
+
+    #[sqlx::test]
+    async fn public_receipt_has_delivery_fee(pool: PgPool) {
+        let sh = shop(&pool).await;
+        let o = delivery_sale(&sh, "50", "150").await;
+        let did = delivery_id(&pool, &o).await;
+        set_fee(&sh, &did, "80").await;
+        let token: String = sqlx::query_scalar("SELECT receipt_token FROM orders")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let r = sh.a.get(&format!("/api/v1/public/receipts/{token}")).await;
+        assert_eq!(r.status(), 200);
+        let v = r.json();
+        assert_eq!(
+            (v["delivery_fee"].as_str(), v["total"].as_str()),
+            (Some("80.00"), Some("180.00"))
+        );
+        assert_eq!(v["owed"], "30.00");
+
+        let c = sell(
+            &sh,
+            json!({"lines": [{"product_id": sh.p, "quantity": 1}],
+                   "payments": [{"method": "cash", "amount": "100"}]}),
+        )
+        .await;
+        let token: String = sqlx::query_scalar("SELECT receipt_token FROM orders WHERE id = $1")
+            .bind(uuid(&c["id"]))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let v =
+            sh.a.get(&format!("/api/v1/public/receipts/{token}"))
+                .await
+                .json();
+        assert_eq!(v["delivery_fee"], "0.00");
+    }
+}

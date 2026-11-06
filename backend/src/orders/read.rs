@@ -93,6 +93,14 @@ pub struct PaidByMethod {
     pub upi: String,
 }
 
+/// The delivery behind a delivery order.
+#[derive(Debug, Serialize)]
+pub struct DeliveryRef {
+    pub id: Uuid,
+    pub status: String,
+    pub driver_name: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct OrderDetail {
     pub id: Uuid,
@@ -103,6 +111,11 @@ pub struct OrderDetail {
     pub lines: Vec<LineOut>,
     pub subtotal: String,
     pub order_discount: String,
+    /// `counter` or `delivery`.
+    pub fulfilment: String,
+    /// The delivery fee as it stands now (`0.00` for counter sales).
+    pub delivery_fee: String,
+    /// Goods plus the current delivery fee.
     pub total: String,
     pub paid: String,
     pub owed: String,
@@ -118,6 +131,7 @@ pub struct OrderDetail {
     pub note: Option<String>,
     pub receipt_url: String,
     pub whatsapp_url: Option<String>,
+    pub delivery: Option<DeliveryRef>,
 }
 
 #[derive(Debug, Serialize)]
@@ -129,6 +143,8 @@ pub struct OrderSummary {
     pub customer_id: Option<Uuid>,
     pub customer_name: Option<String>,
     pub customer_phone: Option<String>,
+    pub fulfilment: String,
+    pub delivery_status: Option<String>,
     pub total: String,
     pub paid: String,
     pub owed: String,
@@ -171,6 +187,9 @@ pub struct PublicReceipt {
     pub subtotal: Decimal,
     #[serde(serialize_with = "money_str")]
     pub order_discount: Decimal,
+    /// The delivery fee as it stands now; zero for counter sales.
+    #[serde(serialize_with = "money_str")]
+    pub delivery_fee: Decimal,
     #[serde(serialize_with = "money_str")]
     pub total: Decimal,
     #[serde(serialize_with = "money_str")]
@@ -185,7 +204,8 @@ pub struct PublicReceipt {
 }
 
 /// A cancelled sale is `cancelled`. Otherwise, with nothing owed it is `paid` (also for a 0 bill),
-/// unless returns gave back the whole total, which is `returned`. With something owed, nothing paid
+/// unless returns gave back all the goods (`total` here is the goods total: returns never refund
+/// a delivery fee), which is `returned`. With something owed, nothing paid
 /// (net of refunds) is `unpaid` and anything else is `partly_paid`. Returns shrink what is owed, so
 /// the original total is never compared with what is owed.
 pub fn payment_status(
@@ -238,18 +258,33 @@ struct OrderRow {
     customer_id: Option<Uuid>,
     subtotal: Decimal,
     order_discount: Decimal,
+    fulfilment: String,
+    /// Current: `deliveries.fee` for a delivery order.
+    delivery_fee: Decimal,
+    /// Current total: goods plus the current delivery fee.
     total: Decimal,
+    goods_total: Decimal,
     note: Option<String>,
     receipt_token: String,
     created_at: DateTime<Utc>,
+    delivery_id: Option<Uuid>,
+    delivery_status: Option<String>,
+    driver_name: Option<String>,
 }
 
 async fn order_row(conn: &mut PgConnection, id: Uuid) -> AppResult<OrderRow> {
     sqlx::query_as!(
         OrderRow,
-        "SELECT id, number, status, customer_id, subtotal, order_discount, total, note,
-                receipt_token, created_at
-         FROM orders WHERE id = $1",
+        r#"SELECT o.id, o.number, o.status, o.customer_id, o.subtotal, o.order_discount,
+                  o.fulfilment, COALESCE(d.fee, o.delivery_fee) AS "delivery_fee!",
+                  o.total - o.delivery_fee + COALESCE(d.fee, 0) AS "total!",
+                  o.total - o.delivery_fee AS "goods_total!", o.note, o.receipt_token, o.created_at,
+                  d.id AS "delivery_id?", d.status AS "delivery_status?",
+                  u.display_name AS "driver_name?"
+           FROM orders o
+           LEFT JOIN deliveries d ON d.order_id = o.id
+           LEFT JOIN users u ON u.id = d.current_driver_id
+           WHERE o.id = $1"#,
         id
     )
     .fetch_optional(conn)
@@ -320,6 +355,7 @@ fn receipt_from(
             .collect(),
         subtotal: o.subtotal,
         order_discount: o.order_discount,
+        delivery_fee: o.delivery_fee,
         total: o.total,
         paid: m.paid,
         owed: m.owed,
@@ -541,7 +577,7 @@ pub async fn order_detail(
         None => None,
     };
     let returned = returned_total(conn, id).await?;
-    let payment_status = payment_status(&o.status, o.total, owed, paid, returned);
+    let payment_status = payment_status(&o.status, o.goods_total, owed, paid, returned);
     Ok(OrderDetail {
         id: o.id,
         number: o.number,
@@ -570,6 +606,8 @@ pub async fn order_detail(
             .collect(),
         subtotal: money(o.subtotal),
         order_discount: money(o.order_discount),
+        fulfilment: o.fulfilment,
+        delivery_fee: money(o.delivery_fee),
         total: money(o.total),
         paid: money(paid),
         owed: money(owed),
@@ -584,6 +622,14 @@ pub async fn order_detail(
         note: o.note,
         receipt_url,
         whatsapp_url,
+        delivery: match (o.delivery_id, o.delivery_status) {
+            (Some(id), Some(status)) => Some(DeliveryRef {
+                id,
+                status,
+                driver_name: o.driver_name,
+            }),
+            _ => None,
+        },
     })
 }
 
@@ -684,6 +730,7 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
     let total = sqlx::query_scalar!(
         r#"SELECT count(*) AS "n!"
            FROM orders o
+           LEFT JOIN deliveries d ON d.order_id = o.id
            CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e
                                WHERE e.account = 'receivable' AND e.ref_id = o.id) r
            CROSS JOIN LATERAL (SELECT COALESCE((SELECT -SUM(e.amount) FROM ledger_entries e
@@ -701,7 +748,7 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
              AND ($3::uuid IS NULL OR o.customer_id = $3)
              AND ($4::text IS NULL OR (o.status = 'confirmed'
                                        AND $4 = CASE WHEN r.owed = 0 AND rt.returned > 0
-                                                          AND rt.returned = o.total THEN 'returned'
+                                                          AND rt.returned = o.total - o.delivery_fee THEN 'returned'
                                                      WHEN r.owed = 0 THEN 'paid'
                                                      WHEN pd.paid = 0 THEN 'unpaid'
                                                      ELSE 'partly_paid' END))
@@ -715,10 +762,14 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
     .fetch_one(&mut *conn)
     .await?;
     let rows = sqlx::query!(
-        r#"SELECT o.id, o.number, o.status, o.created_at, o.customer_id, o.total,
+        r#"SELECT o.id, o.number, o.status, o.created_at, o.customer_id,
+                  o.total - o.delivery_fee + COALESCE(d.fee, 0) AS "total!",
+                  o.total - o.delivery_fee AS "goods_total!", o.fulfilment,
+                  d.status AS "delivery_status?",
                   c.name AS "customer_name?", c.phone AS "customer_phone?", r.owed AS "owed!",
                   pd.paid AS "paid!", rt.returned AS "returned!"
            FROM orders o
+           LEFT JOIN deliveries d ON d.order_id = o.id
            LEFT JOIN customers c ON c.id = o.customer_id
            CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e
                                WHERE e.account = 'receivable' AND e.ref_id = o.id) r
@@ -737,7 +788,7 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
              AND ($3::uuid IS NULL OR o.customer_id = $3)
              AND ($4::text IS NULL OR (o.status = 'confirmed'
                                        AND $4 = CASE WHEN r.owed = 0 AND rt.returned > 0
-                                                          AND rt.returned = o.total THEN 'returned'
+                                                          AND rt.returned = o.total - o.delivery_fee THEN 'returned'
                                                      WHEN r.owed = 0 THEN 'paid'
                                                      WHEN pd.paid = 0 THEN 'unpaid'
                                                      ELSE 'partly_paid' END))
@@ -757,7 +808,7 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
     let items = rows
         .into_iter()
         .map(|r| OrderSummary {
-            payment_status: payment_status(&r.status, r.total, r.owed, r.paid, r.returned),
+            payment_status: payment_status(&r.status, r.goods_total, r.owed, r.paid, r.returned),
             id: r.id,
             number: r.number,
             status: r.status,
@@ -765,6 +816,8 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
             customer_id: r.customer_id,
             customer_name: r.customer_name,
             customer_phone: r.customer_phone,
+            fulfilment: r.fulfilment,
+            delivery_status: r.delivery_status,
             paid: money(r.paid),
             owed: money(r.owed),
             total: money(r.total),

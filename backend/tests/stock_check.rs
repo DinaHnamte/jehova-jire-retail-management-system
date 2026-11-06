@@ -426,3 +426,21 @@ async fn stock_check_bounds_owed_by_total_less_returns(pool: PgPool) {
         json!([{"kind": "receivable_out_of_range", "order_id": order_id, "owed": "160.00"}])
     );
 }
+
+mod delivery_fee {
+    use super::common::shop::*;
+    use serde_json::json;
+    use sqlx::PgPool;
+
+    #[sqlx::test]
+    async fn stock_check_accepts_fee_increase(pool: PgPool) {
+        let sh = shop(&pool).await;
+        let o = delivery_sale(&sh, "50", "0").await;
+        let did = delivery_id(&pool, &o).await;
+        set_fee(&sh, &did, "80").await;
+        assert_eq!(order_owed(&pool, &o).await, d("180"));
+        let r = sh.a.post_empty("/api/v1/stock-checks", &sh.m).await;
+        assert_eq!(r.status(), 201, "{:?}", r.json());
+        assert_eq!(r.json()["mismatches"], json!([]));
+    }
+}

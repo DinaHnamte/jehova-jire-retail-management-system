@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(SUM(e.amount), 0) AS \"n!\"\n           FROM ledger_entries e\n           JOIN ledger_transactions t ON t.id = e.transaction_id\n           WHERE e.account = 'receivable' AND t.kind = 'fee_adjustment'\n             AND t.occurred_at >= $1 AND t.occurred_at < $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "n!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "824a8baa8b9560aae15c742c13e0c2c9b7fdab53a3568891b2bb1e825125b9ef"
+}

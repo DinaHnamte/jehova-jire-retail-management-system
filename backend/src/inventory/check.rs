@@ -91,11 +91,12 @@ pub async fn run(db: &PgPool) -> AppResult<CheckRun> {
     let out_of_range = sqlx::query!(
         r#"SELECT o.id AS "id!", r.owed AS "owed!"
            FROM orders o
+           LEFT JOIN deliveries d ON d.order_id = o.id
            CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e
                                WHERE e.account = 'receivable' AND e.ref_id = o.id) r
            CROSS JOIN LATERAL (SELECT COALESCE(SUM(x.amount), 0) AS returned FROM returns x
                                WHERE x.order_id = o.id) rt
-           WHERE (o.status = 'confirmed' AND (r.owed < 0 OR r.owed > o.total - rt.returned))
+           WHERE (o.status = 'confirmed' AND (r.owed < 0 OR r.owed > o.total - o.delivery_fee + COALESCE(d.fee, 0) - rt.returned))
               OR (o.status = 'cancelled' AND r.owed <> 0)
            ORDER BY o.id"#
     )

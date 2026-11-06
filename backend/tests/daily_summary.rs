@@ -271,3 +271,46 @@ async fn daily_summary_returns_and_refunds(pool: PgPool) {
     assert_eq!(t["sales_total"], "300.00");
     assert_eq!(t["cash_received"], "100.00");
 }
+
+mod delivery_fee {
+    use super::common::shop::*;
+    use serde_json::json;
+    use sqlx::PgPool;
+
+    #[sqlx::test]
+    async fn daily_summary_delivery_fees_and_fee_changes(pool: PgPool) {
+        let sh = shop(&pool).await;
+        let o = delivery_sale(&sh, "50", "150").await;
+        let did = delivery_id(&pool, &o).await;
+        sell(
+            &sh,
+            json!({"lines": [{"product_id": sh.p, "quantity": 1}],
+                   "payments": [{"method": "cash", "amount": "100"}]}),
+        )
+        .await;
+        set_fee(&sh, &did, "80").await;
+        set_fee(&sh, &did, "70").await;
+        let v = get_json(&sh, "/api/v1/reports/daily").await;
+        assert_eq!(v["sales_count"], 2);
+        assert_eq!(v["sales_total"], "250.00");
+        assert_eq!(v["delivery_fees"], "50.00");
+        assert_eq!(v["discounts"], "0.00");
+        assert_eq!(v["fee_changes"], "20.00");
+        // The edits don't change what the sale reconciliation counts as new.
+        assert_eq!(v["new_owed"], "0.00");
+
+        // Cancelling reports the order at its current total.
+        let id = o["id"].as_str().unwrap();
+        let r = post(
+            &sh.a,
+            &sh.m,
+            &format!("/api/v1/orders/{id}/cancel"),
+            &key(),
+            json!({}),
+        )
+        .await;
+        assert_eq!(r.status(), 200, "{:?}", r.json());
+        let v = get_json(&sh, "/api/v1/reports/daily").await;
+        assert_eq!(v["cancelled_total"], "170.00");
+    }
+}

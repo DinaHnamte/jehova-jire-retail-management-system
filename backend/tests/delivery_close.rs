@@ -723,3 +723,41 @@ async fn return_before_delivered_is_409(pool: PgPool) {
     assert_eq!(on_hand(&pool, &sh.p).await, 10);
     ledger_is_sound(&pool).await;
 }
+
+#[sqlx::test]
+async fn order_cancel_on_failed_or_delivered_delivery_says_what_to_do(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = sale(&sh, 1, None, "50", "150").await;
+    let did = delivery_of(&pool, &o).await;
+    fail(&sh, &did).await;
+    let r = order_cancel(&sh, &o, &key()).await;
+    assert_code(&r, 409, "DELIVERY_OUT");
+    assert_eq!(
+        r.json()["error"]["message"],
+        "This delivery couldn't be delivered. Check the goods back in to cancel it."
+    );
+    assert_eq!(r.json()["error"]["details"]["status"], "failed");
+
+    let o = sale(&sh, 1, None, "50", "150").await;
+    let did = delivery_of(&pool, &o).await;
+    let lal: String = sqlx::query_scalar("SELECT id::text FROM users WHERE username = 'lal'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assign(&sh, &did, &lal).await;
+    pick_up(&sh, &did).await;
+    act(
+        &sh,
+        &did,
+        "status",
+        json!({"to": "delivered", "received_by": "Mary"}),
+    )
+    .await;
+    let r = order_cancel(&sh, &o, &key()).await;
+    assert_code(&r, 409, "DELIVERY_OUT");
+    assert_eq!(
+        r.json()["error"]["message"],
+        "This delivery is done. Return items instead."
+    );
+    assert_eq!(r.json()["error"]["details"]["status"], "delivered");
+}

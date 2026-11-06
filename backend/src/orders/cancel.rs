@@ -361,7 +361,7 @@ pub async fn cancel(
     if let Some(d) = &order.delivery
         && next_status(d.status, Action::Cancel).is_err()
     {
-        return Err(AppError::delivery_out());
+        return Err(AppError::delivery_out(d.status));
     }
     let refunds = cancel_core(&mut tx, actor, &order, reason.as_deref()).await?;
     if let Some(d) = &order.delivery {

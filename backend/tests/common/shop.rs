@@ -152,3 +152,76 @@ pub async fn account_total(pool: &PgPool, account: &str) -> Decimal {
         .await
         .unwrap()
 }
+
+/// The delivery id of a delivery order.
+pub async fn delivery_id(pool: &PgPool, order: &Value) -> String {
+    let id: Uuid = sqlx::query_scalar("SELECT id FROM deliveries WHERE order_id = $1")
+        .bind(uuid(&order["id"]))
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    id.to_string()
+}
+
+/// Change the fee of a delivery through the owner's edit endpoint.
+pub async fn set_fee(sh: &Shop, did: &str, fee: &str) {
+    let r =
+        sh.a.send(
+            Request::patch(format!("/api/v1/deliveries/{did}"))
+                .header("content-type", "application/json")
+                .header("cookie", &sh.m.cookie)
+                .header("x-csrf-token", &sh.m.csrf)
+                .header("idempotency-key", key())
+                .body(Body::from(json!({"fee": fee}).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(r.status(), 200, "{:?}", r.json());
+}
+
+/// A new driver (user id) added through the API.
+pub async fn add_driver(sh: &Shop) -> String {
+    let r =
+        sh.a.post_json(
+            "/api/v1/drivers",
+            json!({"display_name": "Lalbiaka", "username": "lal", "password": "driver password 1",
+                   "phone": "9862000001", "default_pay": "40"}),
+            Some(&sh.m.cookie),
+            Some(&sh.m.csrf),
+        )
+        .await;
+    assert_eq!(r.status(), 201, "{:?}", r.json());
+    r.json()["id"].as_str().unwrap().to_string()
+}
+
+/// Assign and then move the delivery to `to` (`picked_up`, `delivered` or `failed`).
+pub async fn advance(sh: &Shop, did: &str, driver: &str, to: &str) {
+    let steps = [
+        ("assign", json!({"driver_id": driver})),
+        ("status", json!({"to": "picked_up"})),
+    ];
+    let last = match to {
+        "delivered" => Some(json!({"to": "delivered", "received_by": "Mary"})),
+        "failed" => Some(json!({"to": "failed", "reason": "customer_unavailable"})),
+        _ => None,
+    };
+    let steps = steps.into_iter().chain(last.map(|b| ("status", b)));
+    for (what, body) in steps {
+        let r =
+            sh.a.post_json(
+                &format!("/api/v1/deliveries/{did}/{what}"),
+                body,
+                Some(&sh.m.cookie),
+                Some(&sh.m.csrf),
+            )
+            .await;
+        assert_eq!(r.status(), 200, "{what}: {:?}", r.json());
+    }
+}
+
+/// GET a JSON path as the manager.
+pub async fn get_json(sh: &Shop, path: &str) -> Value {
+    let r = sh.a.get_with(path, Some(&sh.m.cookie)).await;
+    assert_eq!(r.status(), 200, "{:?}", r.json());
+    r.json()
+}

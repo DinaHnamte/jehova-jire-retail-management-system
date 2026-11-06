@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT count(*) AS \"count!\", COALESCE(SUM(total), 0) AS \"total!\"\n           FROM orders WHERE cancelled_at >= $1 AND cancelled_at < $2",
+  "query": "SELECT count(*) AS \"count!\",\n                  COALESCE(SUM(o.total - o.delivery_fee + COALESCE(d.fee, 0)), 0) AS \"total!\"\n           FROM orders o\n           LEFT JOIN deliveries d ON d.order_id = o.id\n           WHERE o.cancelled_at >= $1 AND o.cancelled_at < $2",
   "describe": {
     "columns": [
       {
@@ -27,5 +27,5 @@
       null
     ]
   },
-  "hash": "a2fc9d0978d6f8d99c4b685166c6a49894ab28b4a5525381bb8d777a91ffdee6"
+  "hash": "e41641d734a9273bdfdbb8b544ba375bb8a13d9baf7d6e8ff4e4cdcde0b382a6"
 }

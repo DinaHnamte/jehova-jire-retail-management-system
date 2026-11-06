@@ -60,6 +60,7 @@ pub async fn daily_route(
     let sales = sqlx::query!(
         r#"SELECT count(*) AS "count!",
                   COALESCE(SUM(o.total), 0) AS "total!",
+                  COALESCE(SUM(o.delivery_fee), 0) AS "delivery_fees!",
                   COALESCE(SUM((SELECT SUM(l.quantity * l.list_price) FROM order_lines l
                                  WHERE l.order_id = o.id)), 0) AS "list_total!"
            FROM orders o
@@ -111,8 +112,11 @@ pub async fn daily_route(
     .await?;
     // Undo actions are reported on the day they happen; earlier days never change.
     let cancelled = sqlx::query!(
-        r#"SELECT count(*) AS "count!", COALESCE(SUM(total), 0) AS "total!"
-           FROM orders WHERE cancelled_at >= $1 AND cancelled_at < $2"#,
+        r#"SELECT count(*) AS "count!",
+                  COALESCE(SUM(o.total - o.delivery_fee + COALESCE(d.fee, 0)), 0) AS "total!"
+           FROM orders o
+           LEFT JOIN deliveries d ON d.order_id = o.id
+           WHERE o.cancelled_at >= $1 AND o.cancelled_at < $2"#,
         from,
         until
     )
@@ -151,6 +155,18 @@ pub async fn daily_route(
     )
     .fetch_one(&s.db)
     .await?;
+    // Fee edits after checkout: the receivable side of each fee_adjustment, signed.
+    let fee_changes = sqlx::query_scalar!(
+        r#"SELECT COALESCE(SUM(e.amount), 0) AS "n!"
+           FROM ledger_entries e
+           JOIN ledger_transactions t ON t.id = e.transaction_id
+           WHERE e.account = 'receivable' AND t.kind = 'fee_adjustment'
+             AND t.occurred_at >= $1 AND t.occurred_at < $2"#,
+        from,
+        until
+    )
+    .fetch_one(&s.db)
+    .await?;
     let total_owed = sqlx::query_scalar!(
         r#"SELECT COALESCE(SUM(amount), 0) AS "owed!" FROM ledger_entries WHERE account = 'receivable'"#
     )
@@ -161,7 +177,9 @@ pub async fn daily_route(
         "date": date.to_string(),
         "sales_count": sales.count,
         "sales_total": money(sales.total),
-        "discounts": money(sales.list_total - sales.total),
+        "delivery_fees": money(sales.delivery_fees),
+        "fee_changes": money(fee_changes),
+        "discounts": money(sales.list_total - (sales.total - sales.delivery_fees)),
         "cash_received": money(received.cash),
         "upi_received": money(received.upi),
         "paid_on_these_sales": money(applied.these),

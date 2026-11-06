@@ -166,12 +166,24 @@ impl AppError {
         }
     }
 
-    /// 409: the order is out with a driver, so it can't be cancelled yet.
-    pub fn delivery_out() -> Self {
-        Self::already_done(
-            "DELIVERY_OUT",
-            "This delivery is out with the driver. Mark it delivered or couldn't deliver first.",
-        )
+    /// 409: the delivery is past the point where it can be cancelled directly. The advice
+    /// depends on where it stands.
+    pub fn delivery_out(current: Status) -> Self {
+        let message = match current {
+            Status::Failed => {
+                "This delivery couldn't be delivered. Check the goods back in to cancel it."
+            }
+            Status::Delivered => "This delivery is done. Return items instead.",
+            _ => {
+                "This delivery is out with the driver. Mark it delivered or couldn't deliver first."
+            }
+        };
+        Self::Coded {
+            status: StatusCode::CONFLICT,
+            code: "DELIVERY_OUT",
+            message: message.to_string(),
+            details: json!({ "status": current.as_str() }),
+        }
     }
 
     /// 409: items can only be returned once the delivery is delivered.
@@ -345,7 +357,10 @@ mod tests {
             v["error"]["message"],
             "This delivery is not sent yet. That step isn't possible now."
         );
-        assert_eq!(AppError::delivery_out().code(), "DELIVERY_OUT");
+        assert_eq!(
+            AppError::delivery_out(Status::Failed).code(),
+            "DELIVERY_OUT"
+        );
         assert_eq!(AppError::delivery_not_done().code(), "DELIVERY_NOT_DONE");
     }
 }

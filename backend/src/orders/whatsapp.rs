@@ -44,6 +44,9 @@ pub fn receipt_text(
     if r.order_discount > Decimal::ZERO {
         out.push_str(&format!("Discount — −{}\n", money_short(r.order_discount)));
     }
+    if r.delivery_fee > Decimal::ZERO {
+        out.push_str(&format!("Delivery: {}\n", money_short(r.delivery_fee)));
+    }
     out.push_str(&format!("*Total {}*\n", money_short(r.total)));
     let label = |ms: &[&str]| {
         if ms.is_empty() {
@@ -149,6 +152,7 @@ mod tests {
             lines,
             subtotal: total + d(discount),
             order_discount: d(discount),
+            delivery_fee: Decimal::ZERO,
             total,
             paid,
             owed: total - paid,
@@ -281,5 +285,20 @@ mod tests {
             wa_link("9862012345", "a b*\n₹"),
             "https://wa.me/919862012345?text=a%20b%2A%0A%E2%82%B9"
         );
+    }
+
+    #[test]
+    fn receipt_text_has_delivery_line() {
+        let mut r = receipt(
+            vec![line("Plate", Some("P 1"), 1, "100")],
+            "0",
+            "150",
+            "150",
+        );
+        r.delivery_fee = d("50");
+        let t = receipt_text(&r, "https://x/r/t", &["cash"], &[]);
+        assert!(t.contains("Delivery: ₹50\n*Total ₹150*\n"), "{t}");
+        r.delivery_fee = Decimal::ZERO;
+        assert!(!receipt_text(&r, "https://x/r/t", &["cash"], &[]).contains("Delivery"));
     }
 }
