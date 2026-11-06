@@ -16,4 +16,4 @@ export function formatTime(iso: string): string {
 
 export const fmtPhone = (p: string) => (p.length === 10 ? `${p.slice(0, 5)} ${p.slice(5)}` : p)
 
-export const statusLabel: Record<PaymentStatus, string> = { paid: 'Paid', partly_paid: 'Partly paid', unpaid: 'Unpaid' }
+export const statusLabel: Record<PaymentStatus, string> = { paid: 'Paid', partly_paid: 'Partly paid', unpaid: 'Unpaid', cancelled: 'Cancelled' }

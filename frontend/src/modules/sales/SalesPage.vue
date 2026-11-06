@@ -9,7 +9,7 @@ import { formatTime, todayIst } from './format'
 import { formatDay } from '@/modules/stock/format'
 
 const date = ref(todayIst())
-const paid = ref<'' | 'paid' | 'partly_paid' | 'unpaid'>('')
+const paid = ref<'' | 'paid' | 'partly_paid' | 'unpaid' | 'cancelled'>('')
 const pageNo = ref(1)
 const page = ref<Page<OrderSummary> | null>(null)
 const error = ref<string | null>(null)
@@ -22,7 +22,8 @@ async function load() {
     const r = await listOrders({
       from: date.value || undefined,
       to: date.value || undefined,
-      paid: paid.value || undefined,
+      paid: paid.value && paid.value !== 'cancelled' ? paid.value : undefined,
+      status: paid.value === 'cancelled' ? 'cancelled' : undefined,
       page: pageNo.value,
       per_page: 25,
     })
@@ -56,13 +57,14 @@ const owedNow = (o: OrderSummary) => toPaise(o.owed) > 0n
         <option value="paid">Paid</option>
         <option value="partly_paid">Partly paid</option>
         <option value="unpaid">Unpaid</option>
+        <option value="cancelled">Cancelled</option>
       </select>
     </label>
   </div>
 
   <p v-if="error" role="alert" class="mt-6 rounded-control bg-danger-tint px-4 py-3 font-medium text-danger">{{ error }}</p>
   <p v-else-if="page && page.total === 0" class="mt-6 text-muted">
-    No sales{{ date ? ` on ${formatDay(date)}` : '' }}{{ paid ? ' with that payment status' : '' }}.
+    No sales{{ date ? ` on ${formatDay(date)}` : '' }}{{ paid === 'cancelled' ? ' that were cancelled' : paid ? ' with that payment status' : '' }}.
   </p>
 
   <ul v-else-if="page" class="card mt-6 divide-y divide-line">

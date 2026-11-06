@@ -8,6 +8,9 @@ describe('stock formatting', () => {
     expect(movementLabel('adjustment_in')).toBe('Added')
     expect(movementLabel('adjustment_out')).toBe('Removed')
     expect(movementLabel('damage')).toBe('Damaged')
+    expect(movementLabel('sale')).toBe('Sold')
+    expect(movementLabel('sale_cancel')).toBe('Sale cancelled')
+    expect(movementLabel('sale_return')).toBe('Returned')
   })
   it('signs quantities', () => {
     expect(signed(5)).toBe('+5')

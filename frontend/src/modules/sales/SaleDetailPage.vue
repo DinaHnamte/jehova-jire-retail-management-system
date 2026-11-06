@@ -7,6 +7,7 @@ import { formatRupees, toPaise } from '@/shared/money'
 import { openWhatsApp } from '@/shared/whatsapp'
 import Badge from '@/shared/ui/Badge.vue'
 import PaymentDialog from '@/modules/customers/PaymentDialog.vue'
+import CancelDialog from './CancelDialog.vue'
 import { getCustomer, getOrder, type OrderDetail } from '@/modules/pos/api'
 import { formatWhen } from '@/modules/stock/format'
 import { fmtPhone, statusLabel } from './format'
@@ -17,6 +18,7 @@ const order = ref<OrderDetail | null>(null)
 const customerOwes = ref('0.00')
 const error = ref<string | null>(null)
 const dialog = ref<InstanceType<typeof PaymentDialog> | null>(null)
+const cancelDialog = ref<InstanceType<typeof CancelDialog> | null>(null)
 
 async function load() {
   error.value = null
@@ -33,6 +35,9 @@ onMounted(load)
 const owed = computed(() => (order.value ? toPaise(order.value.owed) > 0n : false))
 // The payment goes against the customer's whole balance (oldest sale first), not just this sale.
 const canPay = computed(() => owed.value && !!order.value?.customer && order.value.status !== 'cancelled' && session.can('payments.record'))
+const canCancel = computed(
+  () => order.value?.status === 'confirmed' && order.value.returns.length === 0 && session.can('orders.void'),
+)
 </script>
 
 <template>
@@ -46,6 +51,10 @@ const canPay = computed(() => owed.value && !!order.value?.customer && order.val
       <Badge v-else :tone="order.payment_status === 'paid' ? 'sage' : 'golden'" dot>{{ statusLabel[order.payment_status] }}</Badge>
     </div>
     <p class="mt-1 text-sm text-muted">{{ formatWhen(order.created_at) }}</p>
+    <p v-if="order.status === 'cancelled'" role="status" class="mt-3 rounded-control bg-canvas px-4 py-3 font-semibold text-muted">
+      This sale was cancelled. The items are back on the shelf<template v-if="order.refunds.length">
+        and {{ order.refunds.map((r) => `${formatRupees(r.amount)} ${r.method === 'upi' ? 'UPI' : r.method} was handed back`).join(', ') }}</template>.
+    </p>
     <p v-if="order.customer" class="mt-1 text-sm">
       <RouterLink :to="`/customers/${order.customer.id}`" class="link">{{ order.customer.name || fmtPhone(order.customer.phone) }}</RouterLink>
       <span v-if="order.customer.name" class="text-muted"> · {{ fmtPhone(order.customer.phone) }}</span>
@@ -83,11 +92,31 @@ const canPay = computed(() => owed.value && !!order.value?.customer && order.val
       </ul>
     </div>
 
+    <div v-if="order.refunds.length" class="mt-4">
+      <h2 class="font-semibold">Handed back</h2>
+      <ul class="mt-1 text-sm text-muted">
+        <li v-for="(r, i) in order.refunds" :key="i" class="flex justify-between">
+          <span>{{ formatWhen(r.occurred_at) }} · {{ r.method.toUpperCase() }}</span>
+          <span class="figure">{{ formatRupees(r.amount) }}</span>
+        </li>
+      </ul>
+    </div>
+
     <div class="mt-6 grid gap-3">
       <button v-if="order.whatsapp_url" type="button" class="btn-primary" @click="openWhatsApp(order.whatsapp_url)">Send on WhatsApp</button>
       <button v-if="canPay" type="button" :class="order.whatsapp_url ? 'btn-secondary' : 'btn-primary'" @click="dialog?.open()">Record payment</button>
+      <button v-if="canCancel" type="button" class="btn-secondary" @click="cancelDialog?.open()">Cancel sale</button>
     </div>
   </section>
 
+  <CancelDialog
+    v-if="order"
+    ref="cancelDialog"
+    :order-id="order.id"
+    :number="order.number"
+    :cash="order.paid_by_method.cash"
+    :upi="order.paid_by_method.upi"
+    @cancelled="load"
+  />
   <PaymentDialog v-if="order?.customer" ref="dialog" :customer-id="order.customer.id" :owes="customerOwes" @saved="load" />
 </template>

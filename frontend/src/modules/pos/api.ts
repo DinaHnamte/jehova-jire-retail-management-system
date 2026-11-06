@@ -3,7 +3,7 @@
 import { api } from '@/shared/api/client'
 import type { Page } from '@/modules/products/api'
 
-export type PaymentStatus = 'paid' | 'partly_paid' | 'unpaid'
+export type PaymentStatus = 'paid' | 'partly_paid' | 'unpaid' | 'cancelled'
 export type PayMethod = 'cash' | 'upi'
 
 export interface Customer {
@@ -21,10 +21,13 @@ export interface CustomerRow extends Customer {
 }
 
 export interface OrderLine {
+  id: string
   product_id: string
   product_name: string
   product_code: string | null
   quantity: number
+  /** How many of `quantity` have been given back. */
+  returned_quantity: number
   list_price: string
   unit_price: string
   line_discount: string
@@ -42,6 +45,33 @@ export interface PaymentRow {
   occurred_at: string
 }
 
+export interface RefundRow {
+  method: string
+  amount: string
+  occurred_at: string
+}
+
+export type Disposition = 'sellable' | 'damaged'
+
+export interface ReturnLineRow {
+  order_line_id: string
+  product_name: string
+  quantity: number
+  disposition: Disposition
+  amount: string
+}
+
+export interface ReturnRow {
+  id: string
+  created_at: string
+  amount: string
+  owed_reduced: string
+  refunded: string
+  refund_method: string | null
+  note: string | null
+  lines: ReturnLineRow[]
+}
+
 export interface OrderDetail {
   id: string
   number: string
@@ -54,8 +84,15 @@ export interface OrderDetail {
   total: string
   paid: string
   owed: string
+  /** `cancelled` for a cancelled sale. */
   payment_status: PaymentStatus
+  /** What is currently paid per method: payments less refunds. */
+  paid_by_method: { cash: string; upi: string }
   payments: PaymentRow[]
+  /** Money handed back on this order, oldest first. */
+  refunds: RefundRow[]
+  /** Returns taken on this sale, newest first. */
+  returns: ReturnRow[]
   note: string | null
   receipt_url: string
   whatsapp_url: string | null
@@ -98,6 +135,12 @@ export interface DailySummary {
   received_on_older_sales: string
   new_owed: string
   total_owed: string
+  cancelled_count: number
+  cancelled_total: string
+  returns_total: string
+  refunds_cash: string
+  refunds_upi: string
+  owed_reduced: string
 }
 
 export interface ReceiptLine {
@@ -107,6 +150,13 @@ export interface ReceiptLine {
   unit_price: string
   list_price: string
   net_amount: string
+}
+
+export interface ReturnedLine {
+  name: string
+  code: string | null
+  quantity: number
+  amount: string
 }
 
 export interface PublicReceipt {
@@ -120,6 +170,9 @@ export interface PublicReceipt {
   total: string
   paid: string
   owed: string
+  /** Total handed back in cash or UPI. */
+  refunded: string
+  returned: ReturnedLine[]
   cancelled: boolean
 }
 
@@ -157,12 +210,31 @@ export interface CustomerPaymentResult {
 }
 
 export interface OrderQuery {
+  status?: 'confirmed' | 'cancelled'
   from?: string
   to?: string
   paid?: 'paid' | 'partly_paid' | 'unpaid'
   customer_id?: string
   page?: number
   per_page?: number
+}
+
+export interface CancelBody {
+  reason?: string
+}
+
+export interface ReturnBody {
+  lines: { order_line_id: string; quantity: number; disposition: Disposition }[]
+  refund_method?: PayMethod
+  note?: string
+  preview?: boolean
+}
+
+export interface ReturnPreview {
+  amount: string
+  owed_reduced: string
+  refund: string
+  lines: { order_line_id: string; quantity: number; amount: string }[]
 }
 
 export interface CustomerBody {
@@ -182,6 +254,14 @@ const idem = (key: string) => ({ headers: { 'Idempotency-Key': key } })
 
 export const checkout = (body: CheckoutBody, key: string) =>
   api.post<OrderDetail>('/orders/checkout', body, idem(key))
+export const cancelOrder = (id: string, body: CancelBody, key: string) =>
+  api.post<OrderDetail>(`/orders/${id}/cancel`, body, idem(key))
+/** Without a key (a preview changes nothing); with one, the return is recorded. */
+export function returnItems(id: string, body: ReturnBody & { preview: true }): Promise<ReturnPreview>
+export function returnItems(id: string, body: ReturnBody, key: string): Promise<OrderDetail>
+export function returnItems(id: string, body: ReturnBody, key?: string): Promise<ReturnPreview | OrderDetail> {
+  return api.post(`/orders/${id}/returns`, body, key ? idem(key) : undefined)
+}
 export const getOrder = (id: string) => api.get<OrderDetail>(`/orders/${id}`)
 export const listOrders = (q: OrderQuery = {}) => api.get<Page<OrderSummary>>(`/orders${qs({ ...q })}`)
 

@@ -3,7 +3,7 @@
 import { api } from '@/shared/api/client'
 import type { NamedRef, Page, ProductSummary } from '@/modules/products/api'
 
-export type MovementType = 'opening_balance' | 'purchase_receipt' | 'adjustment_in' | 'adjustment_out' | 'damage'
+export type MovementType = 'opening_balance' | 'purchase_receipt' | 'adjustment_in' | 'adjustment_out' | 'damage' | 'sale' | 'sale_cancel' | 'sale_return'
 export type AdjustType = 'adjustment_in' | 'adjustment_out' | 'damage'
 export type StockFilter = 'out' | 'unknown_cost'
 
@@ -25,7 +25,7 @@ export interface Movement {
   quantity: number
   unit_cost: string | null
   reason: string | null
-  source_type: 'goods_receipt' | 'stock_count' | 'adjustment'
+  source_type: 'goods_receipt' | 'stock_count' | 'adjustment' | 'order' | 'return'
   source_id: string
   created_by_name: string
   created_at: string

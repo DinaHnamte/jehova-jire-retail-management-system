@@ -9,6 +9,9 @@ const LABELS: Record<MovementType, string> = {
   adjustment_in: 'Added',
   adjustment_out: 'Removed',
   damage: 'Damaged',
+  sale: 'Sold',
+  sale_cancel: 'Sale cancelled',
+  sale_return: 'Returned',
 }
 
 export const movementLabel = (t: MovementType) => LABELS[t]
