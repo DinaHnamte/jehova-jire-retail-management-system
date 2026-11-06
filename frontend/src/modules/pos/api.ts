@@ -3,7 +3,8 @@
 import { api } from '@/shared/api/client'
 import type { Page } from '@/modules/products/api'
 
-export type PaymentStatus = 'paid' | 'partly_paid' | 'unpaid' | 'cancelled'
+/** `returned`: nothing owed and returns gave back the whole total. */
+export type PaymentStatus = 'paid' | 'partly_paid' | 'unpaid' | 'returned' | 'cancelled'
 export type PayMethod = 'cash' | 'upi'
 
 export interface Customer {
@@ -213,7 +214,7 @@ export interface OrderQuery {
   status?: 'confirmed' | 'cancelled'
   from?: string
   to?: string
-  paid?: 'paid' | 'partly_paid' | 'unpaid'
+  paid?: 'paid' | 'partly_paid' | 'unpaid' | 'returned'
   customer_id?: string
   page?: number
   per_page?: number

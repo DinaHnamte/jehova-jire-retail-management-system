@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSessionStore } from '@/modules/auth/session.store'
 import { friendlyMessage } from '@/shared/api/errors'
-import { formatRupees, toPaise } from '@/shared/money'
+import { formatRupees, fromPaise, toPaise } from '@/shared/money'
 import { openWhatsApp } from '@/shared/whatsapp'
 import Badge from '@/shared/ui/Badge.vue'
 import PaymentDialog from '@/modules/customers/PaymentDialog.vue'
@@ -38,6 +38,10 @@ async function load() {
 onMounted(load)
 
 const owed = computed(() => (order.value ? toPaise(order.value.owed) > 0n : false))
+const returned = computed(() => (order.value ? order.value.returns.reduce((s, r) => s + toPaise(r.amount), 0n) : 0n))
+// Everything handed back in cash or UPI (return refunds, and a cancel's hand-back).
+const refunded = computed(() => (order.value ? order.value.refunds.reduce((s, r) => s + toPaise(r.amount), 0n) : 0n))
+const totalNow = computed(() => (order.value ? toPaise(order.value.total) - returned.value : 0n))
 // The payment goes against the customer's whole balance (oldest sale first), not just this sale.
 const canPay = computed(() => owed.value && !!order.value?.customer && order.value.status !== 'cancelled' && session.can('payments.record'))
 const canCancel = computed(
@@ -59,7 +63,7 @@ const canReturn = computed(
     <div class="flex flex-wrap items-center gap-2">
       <h1 id="sale-h" class="text-xl font-bold">{{ order.number }}</h1>
       <Badge v-if="order.status === 'cancelled'" tone="neutral">Cancelled</Badge>
-      <Badge v-else :tone="order.payment_status === 'paid' ? 'sage' : 'golden'" dot>{{ statusLabel[order.payment_status] }}</Badge>
+      <Badge v-else :tone="order.payment_status === 'paid' ? 'sage' : order.payment_status === 'returned' ? 'neutral' : 'golden'" dot>{{ statusLabel[order.payment_status] }}</Badge>
     </div>
     <p class="mt-1 text-sm text-muted">{{ formatWhen(order.created_at) }}</p>
     <p v-if="order.status === 'cancelled'" role="status" class="mt-3 rounded-control bg-canvas px-4 py-3 font-semibold text-muted">
@@ -87,8 +91,15 @@ const canReturn = computed(
         <dt class="text-muted">Discount</dt><dd class="figure">−{{ formatRupees(order.order_discount) }}</dd>
       </template>
       <dt class="font-bold">Total</dt><dd class="figure text-xl">{{ formatRupees(order.total) }}</dd>
+      <template v-if="returned > 0n">
+        <dt class="text-muted">Returned</dt><dd class="figure">−{{ formatRupees(fromPaise(returned)) }}</dd>
+        <dt class="font-bold">Now</dt><dd class="figure font-bold">{{ formatRupees(fromPaise(totalNow)) }}</dd>
+      </template>
       <dt class="text-muted">Paid</dt><dd class="figure">{{ formatRupees(order.paid) }}</dd>
       <dt class="text-muted">Owed</dt><dd class="figure" :class="owed ? 'font-bold text-golden-ink' : ''">{{ formatRupees(order.owed) }}</dd>
+      <template v-if="refunded > 0n">
+        <dt class="text-muted">Refunded</dt><dd class="figure">{{ formatRupees(fromPaise(refunded)) }}</dd>
+      </template>
     </dl>
 
     <p v-if="order.note" class="mt-3 text-sm text-muted">Note: {{ order.note }}</p>

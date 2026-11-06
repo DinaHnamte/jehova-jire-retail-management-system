@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ApiError } from '@/shared/api/errors'
-import { formatRupees, toPaise } from '@/shared/money'
+import { formatRupees, fromPaise, toPaise } from '@/shared/money'
 import { formatWhen } from '@/modules/stock/format'
 import { publicReceipt, type PublicReceipt } from '@/modules/pos/api'
 
@@ -23,6 +23,8 @@ onMounted(async () => {
 })
 
 const owed = computed(() => (receipt.value ? toPaise(receipt.value.owed) > 0n : false))
+const returned = computed(() => (receipt.value ? receipt.value.returned.reduce((s, l) => s + toPaise(l.amount), 0n) : 0n))
+const totalNow = computed(() => (receipt.value ? toPaise(receipt.value.total) - returned.value : 0n))
 </script>
 
 <template>
@@ -74,6 +76,10 @@ const owed = computed(() => (receipt.value ? toPaise(receipt.value.owed) > 0n : 
           <dt class="text-muted">Discount</dt><dd class="figure">−{{ formatRupees(receipt.order_discount) }}</dd>
         </template>
         <dt class="font-bold">Total</dt><dd class="figure text-xl">{{ formatRupees(receipt.total) }}</dd>
+        <template v-if="returned > 0n">
+          <dt class="text-muted">Returned</dt><dd class="figure">−{{ formatRupees(fromPaise(returned)) }}</dd>
+          <dt class="font-bold">Now</dt><dd class="figure font-bold">{{ formatRupees(fromPaise(totalNow)) }}</dd>
+        </template>
         <dt class="text-muted">Paid</dt><dd class="figure">{{ formatRupees(receipt.paid) }}</dd>
         <dt class="text-muted">Owed</dt><dd class="figure" :class="owed ? 'font-bold text-golden-ink' : ''">{{ formatRupees(receipt.owed) }}</dd>
         <template v-if="toPaise(receipt.refunded) > 0n">

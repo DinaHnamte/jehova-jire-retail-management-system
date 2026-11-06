@@ -121,7 +121,9 @@ function cancel() {
           </div>
           <div class="text-right">
             <p class="figure">{{ formatRupees(o.total) }}</p>
-            <Badge v-if="toPaise(o.owed) > 0n" tone="golden">Owed {{ formatRupees(o.owed) }}</Badge>
+            <Badge v-if="o.status === 'cancelled'" tone="neutral">Cancelled</Badge>
+            <Badge v-else-if="o.payment_status === 'returned'" tone="neutral">Returned</Badge>
+            <Badge v-else-if="toPaise(o.owed) > 0n" tone="golden">Owed {{ formatRupees(o.owed) }}</Badge>
           </div>
         </li>
       </ul>

@@ -9,7 +9,7 @@ import { formatTime, todayIst } from './format'
 import { formatDay } from '@/modules/stock/format'
 
 const date = ref(todayIst())
-const paid = ref<'' | 'paid' | 'partly_paid' | 'unpaid' | 'cancelled'>('')
+const paid = ref<'' | 'paid' | 'partly_paid' | 'unpaid' | 'returned' | 'cancelled'>('')
 const pageNo = ref(1)
 const page = ref<Page<OrderSummary> | null>(null)
 const error = ref<string | null>(null)
@@ -57,6 +57,7 @@ const owedNow = (o: OrderSummary) => toPaise(o.owed) > 0n
         <option value="paid">Paid</option>
         <option value="partly_paid">Partly paid</option>
         <option value="unpaid">Unpaid</option>
+        <option value="returned">Returned</option>
         <option value="cancelled">Cancelled</option>
       </select>
     </label>
@@ -78,6 +79,7 @@ const owedNow = (o: OrderSummary) => toPaise(o.owed) > 0n
       <div class="text-right">
         <p class="figure text-lg">{{ formatRupees(o.total) }}</p>
         <Badge v-if="o.status === 'cancelled'" tone="neutral">Cancelled</Badge>
+        <Badge v-else-if="o.payment_status === 'returned'" tone="neutral">Returned</Badge>
         <Badge v-else-if="owedNow(o)" tone="golden">Owed {{ formatRupees(o.owed) }}</Badge>
       </div>
     </li>
