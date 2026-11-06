@@ -13,6 +13,7 @@ import { getCustomer, getOrder, type OrderDetail } from '@/modules/pos/api'
 import { formatWhen } from '@/modules/stock/format'
 import { fmtPhone, statusLabel } from './format'
 import { forgetOrderAttempts } from './undo'
+import { saleCancelNote, statusLabel as deliveryStatus } from '@/modules/deliveries/labels'
 
 const route = useRoute()
 const session = useSessionStore()
@@ -44,12 +45,20 @@ const refunded = computed(() => (order.value ? order.value.refunds.reduce((s, r)
 const totalNow = computed(() => (order.value ? toPaise(order.value.total) - returned.value : 0n))
 // The payment goes against the customer's whole balance (oldest sale first), not just this sale.
 const canPay = computed(() => owed.value && !!order.value?.customer && order.value.status !== 'cancelled' && session.can('payments.record'))
+const deliveryState = computed(() => order.value?.delivery?.status ?? null)
+// A delivery that is out, failed or done can't be cancelled here (Ruling 4).
+const cancelNote = computed(() => (deliveryState.value ? saleCancelNote(deliveryState.value) : null))
 const canCancel = computed(
-  () => order.value?.status === 'confirmed' && order.value.returns.length === 0 && session.can('orders.void'),
+  () =>
+    order.value?.status === 'confirmed' &&
+    order.value.returns.length === 0 &&
+    session.can('orders.void') &&
+    !cancelNote.value,
 )
 const canReturn = computed(
   () =>
     order.value?.status === 'confirmed' &&
+    (!order.value.delivery || order.value.delivery.status === 'delivered') &&
     order.value.lines.some((l) => l.quantity - l.returned_quantity > 0) &&
     session.can('returns.create'),
 )
@@ -73,6 +82,12 @@ const canReturn = computed(
     <p v-if="order.customer" class="mt-1 text-sm">
       <RouterLink :to="`/customers/${order.customer.id}`" class="link">{{ order.customer.name || fmtPhone(order.customer.phone) }}</RouterLink>
       <span v-if="order.customer.name" class="text-muted"> · {{ fmtPhone(order.customer.phone) }}</span>
+    </p>
+
+    <p v-if="order.delivery" class="mt-3 rounded-control bg-canvas px-4 py-3 text-sm">
+      <span class="font-semibold">Delivery · {{ deliveryStatus(order.delivery.status) }}</span>
+      <template v-if="order.delivery.driver_name"> · {{ order.delivery.driver_name }}</template>
+      · <RouterLink :to="`/deliveries/${order.delivery.id}`" class="link">Open delivery</RouterLink>
     </p>
 
     <ul class="mt-4 divide-y divide-line border-y border-line">
@@ -147,6 +162,7 @@ const canReturn = computed(
       <button v-if="canPay" type="button" :class="order.whatsapp_url ? 'btn-secondary' : 'btn-primary'" @click="dialog?.open()">Record payment</button>
       <button v-if="canReturn" type="button" class="btn-secondary" @click="returnDialog?.open()">Return items</button>
       <button v-if="canCancel" type="button" class="btn-secondary" @click="cancelDialog?.open()">Cancel sale</button>
+      <p v-if="cancelNote && order.status === 'confirmed'" class="text-sm text-muted">{{ cancelNote }}</p>
     </div>
   </section>
 

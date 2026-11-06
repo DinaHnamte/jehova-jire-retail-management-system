@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reasonLabel, reasons, statusLabel } from './labels'
+import { actionsFor, ageLabel, reasonLabel, reasons, saleCancelNote, statusLabel } from './labels'
 
 describe('statusLabel', () => {
   it('labels every status', () => {
@@ -33,5 +33,37 @@ describe('reasonLabel', () => {
   })
   it('falls back to the code', () => {
     expect(reasonLabel('zzz')).toBe('zzz')
+  })
+})
+
+describe('actionsFor', () => {
+  it('lists what the owner can do per status', () => {
+    expect(actionsFor('to_send', false)).toEqual(['assign', 'edit', 'cancel'])
+    expect(actionsFor('assigned', true)).toEqual(['reassign', 'edit', 'cancel', 'picked_up'])
+    expect(actionsFor('picked_up', true)).toEqual(['delivered', 'failed'])
+    expect(actionsFor('failed', true)).toEqual(['retry', 'check_in'])
+  })
+  it('offers nothing once closed', () => {
+    for (const s of ['delivered', 'returned', 'cancelled'] as const) expect(actionsFor(s, true)).toEqual([])
+  })
+})
+
+describe('ageLabel', () => {
+  const now = new Date('2026-11-07T12:00:00Z')
+  it('reads minutes, hours and days', () => {
+    expect(ageLabel('2026-11-07T11:50:00Z', now)).toBe('10 min')
+    expect(ageLabel('2026-11-07T10:00:00Z', now)).toBe('2 h')
+    expect(ageLabel('2026-11-04T12:00:00Z', now)).toBe('3 d')
+    expect(ageLabel('2026-11-07T12:00:30Z', now)).toBe('now')
+  })
+})
+
+describe('saleCancelNote', () => {
+  it('explains why a delivery sale cannot be cancelled', () => {
+    expect(saleCancelNote('picked_up')).toBe('This delivery is out with the driver. Mark it delivered or couldn\'t deliver first.')
+    expect(saleCancelNote('failed')).toBe("This delivery couldn't be delivered. Check the goods back in to cancel it.")
+    expect(saleCancelNote('delivered')).toBe('This delivery is done. Return items instead.')
+    expect(saleCancelNote('returned')).toBeNull()
+    expect(saleCancelNote('assigned')).toBeNull()
   })
 })

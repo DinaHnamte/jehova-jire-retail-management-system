@@ -7,6 +7,7 @@ import type { Page } from '@/modules/products/api'
 import { listOrders, type OrderSummary } from '@/modules/pos/api'
 import { formatTime, todayIst } from './format'
 import { formatDay } from '@/modules/stock/format'
+import { statusLabel as deliveryStatus } from '@/modules/deliveries/labels'
 
 const date = ref(todayIst())
 const paid = ref<'' | 'paid' | 'partly_paid' | 'unpaid' | 'returned' | 'cancelled'>('')
@@ -78,6 +79,7 @@ const owedNow = (o: OrderSummary) => toPaise(o.owed) > 0n
       </div>
       <div class="text-right">
         <p class="figure text-lg">{{ formatRupees(o.total) }}</p>
+        <p v-if="o.fulfilment === 'delivery' && o.delivery_status" class="mb-1"><Badge tone="primary">Delivery · {{ deliveryStatus(o.delivery_status) }}</Badge></p>
         <Badge v-if="o.status === 'cancelled'" tone="neutral">Cancelled</Badge>
         <Badge v-else-if="o.payment_status === 'returned'" tone="neutral">Returned</Badge>
         <Badge v-else-if="owedNow(o)" tone="golden">Owed {{ formatRupees(o.owed) }}</Badge>
