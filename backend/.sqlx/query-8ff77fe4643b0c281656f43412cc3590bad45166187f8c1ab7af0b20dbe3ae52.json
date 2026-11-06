@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE driver_profiles SET phone = $2, default_pay = $3, note = $4, updated_at = now()\n         WHERE user_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Numeric",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8ff77fe4643b0c281656f43412cc3590bad45166187f8c1ab7af0b20dbe3ae52"
+}

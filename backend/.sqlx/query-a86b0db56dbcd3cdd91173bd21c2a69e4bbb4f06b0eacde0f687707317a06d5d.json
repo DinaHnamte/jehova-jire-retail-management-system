@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO driver_profiles (user_id, phone, default_pay, note) VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Numeric",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a86b0db56dbcd3cdd91173bd21c2a69e4bbb4f06b0eacde0f687707317a06d5d"
+}
