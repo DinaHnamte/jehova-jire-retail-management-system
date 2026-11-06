@@ -56,6 +56,14 @@ pub struct PaymentRow {
 }
 
 #[derive(Debug, Serialize)]
+pub struct RefundRow {
+    pub method: String,
+    /// What was handed back in cash or UPI.
+    pub amount: String,
+    pub occurred_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct OrderDetail {
     pub id: Uuid,
     pub number: String,
@@ -71,6 +79,8 @@ pub struct OrderDetail {
     /// `paid`, `partly_paid` or `unpaid`.
     pub payment_status: &'static str,
     pub payments: Vec<PaymentRow>,
+    /// Money handed back on this order (cancel or return), oldest first.
+    pub refunds: Vec<RefundRow>,
     pub note: Option<String>,
     pub receipt_url: String,
     pub whatsapp_url: Option<String>,
@@ -257,6 +267,31 @@ async fn payment_rows(conn: &mut PgConnection, order_id: Uuid) -> AppResult<Vec<
         .collect())
 }
 
+/// Refunds on this order: each `refund` transaction's credit to cash or UPI.
+async fn refund_rows(conn: &mut PgConnection, order_id: Uuid) -> AppResult<Vec<RefundRow>> {
+    let rows = sqlx::query!(
+        r#"SELECT t.id, COALESCE(t.method, 'cash') AS "method!",
+                  -SUM(e.amount) AS "amount!", t.occurred_at
+           FROM ledger_transactions t
+           JOIN ledger_entries e
+             ON e.transaction_id = t.id AND e.account IN ('cash', 'upi')
+           WHERE t.order_id = $1 AND t.kind = 'refund'
+           GROUP BY t.id, t.method, t.occurred_at
+           ORDER BY t.occurred_at, t.id"#,
+        order_id
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| RefundRow {
+            method: r.method,
+            amount: money(r.amount),
+            occurred_at: r.occurred_at,
+        })
+        .collect())
+}
+
 pub async fn order_detail(
     conn: &mut PgConnection,
     id: Uuid,
@@ -271,6 +306,7 @@ pub async fn order_detail(
     };
     let owed = ledger::order_owed(conn, id).await?;
     let payments = payment_rows(conn, id).await?;
+    let refunds = refund_rows(conn, id).await?;
     let receipt_url = format!("{}/r/{}", cfg.public_url, o.receipt_token);
     let whatsapp_url = match &customer {
         Some(c) => {
@@ -318,6 +354,7 @@ pub async fn order_detail(
         owed: money(owed),
         payment_status: payment_status(o.total, owed),
         payments,
+        refunds,
         note: o.note,
         receipt_url,
         whatsapp_url,

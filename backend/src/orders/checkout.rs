@@ -414,6 +414,7 @@ pub async fn checkout(
                 actor,
                 idempotency_key: format!("order:{order_id}:sale"),
                 note: None,
+                reverses_id: None,
                 entries: vec![
                     (Account::Receivable(order_id), total),
                     (Account::SalesRevenue, -total),
@@ -441,6 +442,7 @@ pub async fn checkout(
                     if split { suffix } else { "" }
                 ),
                 note: None,
+                reverses_id: None,
                 entries: vec![
                     (account, *amount),
                     (Account::Receivable(order_id), -*amount),

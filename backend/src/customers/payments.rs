@@ -122,6 +122,7 @@ pub async fn record(
             actor,
             idempotency_key: format!("customer:{customer_id}:payment:{}", new_id()),
             note,
+            reverses_id: None,
             entries,
         },
     )

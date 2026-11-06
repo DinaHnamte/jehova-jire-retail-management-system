@@ -10,6 +10,10 @@ pub enum MovementType {
     AdjustmentOut,
     Damage,
     Sale,
+    /// A cancelled sale's goods back on the shelf.
+    SaleCancel,
+    /// Returned goods back on the shelf.
+    SaleReturn,
 }
 
 impl MovementType {
@@ -21,6 +25,8 @@ impl MovementType {
             Self::AdjustmentOut => "adjustment_out",
             Self::Damage => "damage",
             Self::Sale => "sale",
+            Self::SaleCancel => "sale_cancel",
+            Self::SaleReturn => "sale_return",
         }
     }
 
@@ -28,7 +34,11 @@ impl MovementType {
     pub fn is_inbound(self) -> bool {
         matches!(
             self,
-            Self::OpeningBalance | Self::PurchaseReceipt | Self::AdjustmentIn
+            Self::OpeningBalance
+                | Self::PurchaseReceipt
+                | Self::AdjustmentIn
+                | Self::SaleCancel
+                | Self::SaleReturn
         )
     }
 }
@@ -43,6 +53,8 @@ impl FromStr for MovementType {
             "adjustment_out" => Self::AdjustmentOut,
             "damage" => Self::Damage,
             "sale" => Self::Sale,
+            "sale_cancel" => Self::SaleCancel,
+            "sale_return" => Self::SaleReturn,
             _ => return Err(()),
         })
     }
@@ -54,6 +66,7 @@ pub enum SourceType {
     StockCount,
     Adjustment,
     Order,
+    Return,
 }
 
 impl SourceType {
@@ -63,6 +76,7 @@ impl SourceType {
             Self::StockCount => "stock_count",
             Self::Adjustment => "adjustment",
             Self::Order => "order",
+            Self::Return => "return",
         }
     }
 }
@@ -131,6 +145,8 @@ mod tests {
             MovementType::AdjustmentOut,
             MovementType::Damage,
             MovementType::Sale,
+            MovementType::SaleCancel,
+            MovementType::SaleReturn,
         ] {
             assert_eq!(MovementType::from_str(t.as_str()), Ok(t));
         }
@@ -138,8 +154,11 @@ mod tests {
         assert!(MovementType::PurchaseReceipt.is_inbound());
         assert!(!MovementType::Damage.is_inbound());
         assert!(!MovementType::Sale.is_inbound());
+        assert!(MovementType::SaleCancel.is_inbound());
+        assert!(MovementType::SaleReturn.is_inbound());
         assert!(MovementType::from_str("refund").is_err());
         assert_eq!(SourceType::GoodsReceipt.as_str(), "goods_receipt");
         assert_eq!(SourceType::Order.as_str(), "order");
+        assert_eq!(SourceType::Return.as_str(), "return");
     }
 }

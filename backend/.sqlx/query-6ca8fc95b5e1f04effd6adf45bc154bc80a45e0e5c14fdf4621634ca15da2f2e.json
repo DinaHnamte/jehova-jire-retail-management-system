@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT t.id, COALESCE(t.method, 'cash') AS \"method!\",\n                  -SUM(e.amount) AS \"amount!\", t.occurred_at\n           FROM ledger_transactions t\n           JOIN ledger_entries e\n             ON e.transaction_id = t.id AND e.account IN ('cash', 'upi')\n           WHERE t.order_id = $1 AND t.kind = 'refund'\n           GROUP BY t.id, t.method, t.occurred_at\n           ORDER BY t.occurred_at, t.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "ledger_transactions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "method!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "amount!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "occurred_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "ledger_transactions",
+            "name": "occurred_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "6ca8fc95b5e1f04effd6adf45bc154bc80a45e0e5c14fdf4621634ca15da2f2e"
+}

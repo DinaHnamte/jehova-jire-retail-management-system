@@ -15,6 +15,7 @@ pub enum Account {
     Cash,
     Upi,
     SalesRevenue,
+    SalesReturns,
 }
 
 impl Account {
@@ -24,14 +25,20 @@ impl Account {
             Self::Cash => ("cash", None),
             Self::Upi => ("upi", None),
             Self::SalesRevenue => ("sales_revenue", None),
+            Self::SalesReturns => ("sales_returns", None),
         }
     }
 }
 
-/// 5b adds the rest (cancel, refund, return_credit).
 pub enum TxnKind {
     Sale,
     Payment,
+    /// Reverses a sale (`reverses_id` names it).
+    Cancel,
+    /// Money handed back in cash or UPI.
+    Refund,
+    /// A return that reduces what is owed.
+    ReturnCredit,
 }
 
 impl TxnKind {
@@ -39,6 +46,9 @@ impl TxnKind {
         match self {
             Self::Sale => "sale",
             Self::Payment => "payment",
+            Self::Cancel => "cancel",
+            Self::Refund => "refund",
+            Self::ReturnCredit => "return_credit",
         }
     }
 }
@@ -69,6 +79,8 @@ pub struct TxnInput<'a> {
     /// Request key plus a suffix (`:sale`, `:payment`), unique per transaction.
     pub idempotency_key: String,
     pub note: Option<&'a str>,
+    /// The transaction this one reverses (a cancel names its sale).
+    pub reverses_id: Option<Uuid>,
     pub entries: Vec<(Account, Decimal)>,
 }
 
@@ -97,8 +109,9 @@ pub async fn post(conn: &mut PgConnection, t: TxnInput<'_>) -> AppResult<Uuid> {
     let id = new_id();
     sqlx::query!(
         "INSERT INTO ledger_transactions
-             (id, kind, order_id, customer_id, method, received_by, note, actor_id, idempotency_key)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+             (id, kind, order_id, customer_id, method, received_by, note, actor_id, idempotency_key,
+              reverses_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         id,
         t.kind.as_str(),
         t.order_id,
@@ -108,6 +121,7 @@ pub async fn post(conn: &mut PgConnection, t: TxnInput<'_>) -> AppResult<Uuid> {
         t.note,
         t.actor,
         t.idempotency_key,
+        t.reverses_id,
     )
     .execute(&mut *conn)
     .await?;

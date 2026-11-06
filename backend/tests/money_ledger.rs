@@ -70,6 +70,7 @@ fn input(
         actor,
         idempotency_key: format!("{order}:{suffix}"),
         note: None,
+        reverses_id: None,
         entries,
     }
 }

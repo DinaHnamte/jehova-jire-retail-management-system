@@ -139,6 +139,19 @@ impl AppError {
         }
     }
 
+    /// 409: the sale was already cancelled.
+    pub fn not_cancellable() -> Self {
+        Self::already_done("ALREADY_CANCELLED", "This sale is already cancelled.")
+    }
+
+    /// 409: a sale with returns can't be cancelled; the rest must be returned instead.
+    pub fn has_returns() -> Self {
+        Self::already_done(
+            "HAS_RETURNS",
+            "Some items were already returned. Return the rest instead.",
+        )
+    }
+
     /// 400: a money-moving request arrived without a usable Idempotency-Key.
     pub fn idempotency_key_required() -> Self {
         Self::Coded {
