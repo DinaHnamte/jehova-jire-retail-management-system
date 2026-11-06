@@ -7,7 +7,7 @@ import { checkout, lastAddress, type CheckoutPayment, type OrderDetail } from '.
 import { useCartStore } from './cart.store'
 import CustomerPicker from './CustomerPicker.vue'
 import DeliveryFields from './DeliveryFields.vue'
-import { draftErrors, draftFromLastAddress } from './delivery'
+import { collectLine, draftErrors, draftFromLastAddress } from './delivery'
 
 const emit = defineEmits<{
   done: [order: OrderDetail]
@@ -198,7 +198,7 @@ function handleError(e: unknown) {
       <div class="mt-3 flex items-center justify-between gap-3">
         <button type="button" class="btn-secondary" @click="payLater">Pay later</button>
         <p v-if="inputsOk && !overpaid" class="text-right">
-          <span v-if="owing > 0n && isDelivery" class="font-bold text-golden-ink">Driver collects {{ formatRupees(fromPaise(owing)) }}</span>
+          <span v-if="owing > 0n && isDelivery" class="font-bold text-golden-ink">{{ collectLine(store.delivery.collector, owing) }}</span>
           <span v-else-if="owing > 0n" class="font-bold text-golden-ink">Left owing {{ formatRupees(fromPaise(owing)) }}</span>
           <span v-else class="font-bold text-sage-ink">Paid in full</span>
         </p>
@@ -214,7 +214,7 @@ function handleError(e: unknown) {
         For {{ store.customer?.name || store.customer?.phone || store.newCustomer?.name || store.newCustomer?.phone }}
       </p>
 
-      <DeliveryFields v-if="isDelivery" :model-value="store.delivery" :errors="fieldErrors" @update:model-value="store.setDelivery" />
+      <DeliveryFields v-if="isDelivery" :model-value="store.delivery" :errors="fieldErrors" :disabled="pending" @update:model-value="store.setDelivery" />
 
       <div class="mt-6 flex justify-end gap-2">
         <button type="button" class="btn-secondary" @click="dialog?.close()">Back</button>

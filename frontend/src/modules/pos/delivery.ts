@@ -1,6 +1,6 @@
 // The delivery part of a sale: the draft the Charge sheet edits and how it becomes a request.
 // Pure functions, no Vue, so they are easy to test.
-import { fromPaise, parseMoneyInput, toPaise } from '@/shared/money'
+import { formatRupees, fromPaise, parseMoneyInput, toPaise } from '@/shared/money'
 import type { CheckoutBody } from './api'
 
 export interface DeliveryDraft {
@@ -91,6 +91,12 @@ export function draftErrors(d: DeliveryDraft): Record<string, string> {
   else if (parseMoneyInput(d.fee) === null) e['delivery.fee'] = 'Enter an amount like 50 or 49.50.'
   if (!blank(d.driverPay) && parseMoneyInput(d.driverPay) === null) e['delivery.driver_pay'] = 'Enter an amount like 30 or 29.50.'
   return e
+}
+
+/** The line under the amount fields: who collects what is owing. */
+export function collectLine(collector: 'driver' | 'shop', owingPaise: bigint): string {
+  if (owingPaise <= 0n) return 'Paid in full'
+  return `${collector === 'shop' ? 'You collect' : 'Driver collects'} ${formatRupees(fromPaise(owingPaise))}`
 }
 
 /** Goods total plus the fee, in paise; a blank or bad fee counts as zero. */

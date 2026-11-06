@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deliveryBody, draftErrors, draftFromLastAddress, emptyDraft, totalWithFee } from './delivery'
+import { collectLine, deliveryBody, draftErrors, draftFromLastAddress, emptyDraft, totalWithFee } from './delivery'
 
 const full = () => ({
   ...emptyDraft(),
@@ -73,5 +73,13 @@ describe('draftFromLastAddress', () => {
     const d = draftFromLastAddress(null, { name: 'Cust', phone: '9111111111' }, emptyDraft())
     expect(d.recipientName).toBe('Cust')
     expect(d.recipientPhone).toBe('9111111111')
+  })
+})
+
+describe('collectLine', () => {
+  it('words who collects', () => {
+    expect(collectLine('driver', 25000n)).toBe('Driver collects ₹250.00')
+    expect(collectLine('shop', 25000n)).toBe('You collect ₹250.00')
+    expect(collectLine('driver', 0n)).toBe('Paid in full')
   })
 })
