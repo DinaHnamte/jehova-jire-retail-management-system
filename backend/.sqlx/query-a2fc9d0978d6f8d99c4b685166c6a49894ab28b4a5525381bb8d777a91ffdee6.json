@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"count!\", COALESCE(SUM(total), 0) AS \"total!\"\n           FROM orders WHERE cancelled_at >= $1 AND cancelled_at < $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "total!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "a2fc9d0978d6f8d99c4b685166c6a49894ab28b4a5525381bb8d777a91ffdee6"
+}

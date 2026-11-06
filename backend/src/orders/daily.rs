@@ -63,7 +63,7 @@ pub async fn daily_route(
                   COALESCE(SUM((SELECT SUM(l.quantity * l.list_price) FROM order_lines l
                                  WHERE l.order_id = o.id)), 0) AS "list_total!"
            FROM orders o
-           WHERE o.status = 'confirmed' AND o.created_at >= $1 AND o.created_at < $2"#,
+           WHERE o.created_at >= $1 AND o.created_at < $2"#,
         from,
         until
     )
@@ -85,7 +85,7 @@ pub async fn daily_route(
            FROM ledger_entries e
            JOIN ledger_transactions t ON t.id = e.transaction_id
            JOIN orders o ON o.id = e.ref_id
-           WHERE e.account = 'receivable' AND o.status = 'confirmed'
+           WHERE e.account = 'receivable' AND t.kind IN ('sale', 'payment')
              AND o.created_at >= $1 AND o.created_at < $2
              AND t.occurred_at >= $1 AND t.occurred_at < $2"#,
         from,
@@ -97,14 +97,54 @@ pub async fn daily_route(
     // that day, so sales total = paid on these sales + new owed, and cash + UPI = paid on
     // these sales + received on older sales.
     let applied = sqlx::query!(
-        r#"SELECT COALESCE(-SUM(e.amount) FILTER (WHERE o.status = 'confirmed'
-                      AND o.created_at >= $1 AND o.created_at < $2), 0) AS "these!",
-                  COALESCE(-SUM(e.amount) FILTER (WHERE NOT (o.status = 'confirmed'
-                      AND o.created_at >= $1 AND o.created_at < $2)), 0) AS "older!"
+        r#"SELECT COALESCE(-SUM(e.amount) FILTER (WHERE o.created_at >= $1 AND o.created_at < $2), 0) AS "these!",
+                  COALESCE(-SUM(e.amount) FILTER (WHERE NOT (o.created_at >= $1 AND o.created_at < $2)), 0) AS "older!"
            FROM ledger_entries e
            JOIN ledger_transactions t ON t.id = e.transaction_id
            JOIN orders o ON o.id = e.ref_id
            WHERE t.kind = 'payment' AND e.account = 'receivable'
+             AND t.occurred_at >= $1 AND t.occurred_at < $2"#,
+        from,
+        until
+    )
+    .fetch_one(&s.db)
+    .await?;
+    // Undo actions are reported on the day they happen; earlier days never change.
+    let cancelled = sqlx::query!(
+        r#"SELECT count(*) AS "count!", COALESCE(SUM(total), 0) AS "total!"
+           FROM orders WHERE cancelled_at >= $1 AND cancelled_at < $2"#,
+        from,
+        until
+    )
+    .fetch_one(&s.db)
+    .await?;
+    let returns_total = sqlx::query_scalar!(
+        r#"SELECT COALESCE(SUM(amount), 0) AS "total!"
+           FROM returns WHERE created_at >= $1 AND created_at < $2"#,
+        from,
+        until
+    )
+    .fetch_one(&s.db)
+    .await?;
+    let refunds = sqlx::query!(
+        r#"SELECT COALESCE(-SUM(e.amount) FILTER (WHERE e.account = 'cash'), 0) AS "cash!",
+                  COALESCE(-SUM(e.amount) FILTER (WHERE e.account = 'upi'), 0) AS "upi!"
+           FROM ledger_entries e
+           JOIN ledger_transactions t ON t.id = e.transaction_id
+           WHERE t.kind = 'refund' AND e.account IN ('cash', 'upi') AND e.amount < 0
+             AND t.occurred_at >= $1 AND t.occurred_at < $2"#,
+        from,
+        until
+    )
+    .fetch_one(&s.db)
+    .await?;
+    // Credits to receivable from cancels and return credits (negative amounts) minus refund
+    // debits to receivable. Negated so a positive number means what is owed went down.
+    let owed_reduced = sqlx::query_scalar!(
+        r#"SELECT COALESCE(-SUM(e.amount), 0) AS "reduced!"
+           FROM ledger_entries e
+           JOIN ledger_transactions t ON t.id = e.transaction_id
+           WHERE e.account = 'receivable' AND t.kind IN ('cancel', 'return_credit', 'refund')
              AND t.occurred_at >= $1 AND t.occurred_at < $2"#,
         from,
         until
@@ -128,5 +168,11 @@ pub async fn daily_route(
         "received_on_older_sales": money(applied.older),
         "new_owed": money(new_owed),
         "total_owed": money(total_owed),
+        "cancelled_count": cancelled.count,
+        "cancelled_total": money(cancelled.total),
+        "returns_total": money(returns_total),
+        "refunds_cash": money(refunds.cash),
+        "refunds_upi": money(refunds.upi),
+        "owed_reduced": money(owed_reduced),
     })))
 }

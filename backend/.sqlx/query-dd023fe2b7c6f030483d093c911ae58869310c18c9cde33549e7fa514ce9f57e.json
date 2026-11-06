@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(-SUM(e.amount), 0) AS \"reduced!\"\n           FROM ledger_entries e\n           JOIN ledger_transactions t ON t.id = e.transaction_id\n           WHERE e.account = 'receivable' AND t.kind IN ('cancel', 'return_credit', 'refund')\n             AND t.occurred_at >= $1 AND t.occurred_at < $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "reduced!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "dd023fe2b7c6f030483d093c911ae58869310c18c9cde33549e7fa514ce9f57e"
+}

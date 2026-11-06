@@ -2,6 +2,7 @@
 mod common;
 use axum::{body::Body, http::Request};
 use common::{Session, TestApp, TestResponse, app, seed_product, seed_user};
+use jj_retail_api::inventory::today_ist;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -178,4 +179,95 @@ async fn daily_summary_rejects_bad_date(pool: PgPool) {
 async fn daily_summary_needs_reports_read(pool: PgPool) {
     let sh = shop(&pool).await;
     assert_eq!(daily(&sh, &sh.cashier, "").await.status(), 403);
+}
+
+async fn as_boss(sh: &Shop, path: &str, body: Value) -> TestResponse {
+    sh.a.send(
+        Request::post(path)
+            .header("content-type", "application/json")
+            .header("cookie", &sh.boss.cookie)
+            .header("x-csrf-token", &sh.boss.csrf)
+            .header("idempotency-key", format!("k-{}", Uuid::now_v7()))
+            .body(Body::from(body.to_string()))
+            .unwrap(),
+    )
+    .await
+}
+
+#[sqlx::test]
+async fn daily_summary_counts_cancel_on_the_day_it_happens(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let old = sell(&sh, 2, json!([{"method": "cash", "amount": "200"}])).await;
+    let id = old["id"].as_str().unwrap();
+    let mut tx = pool.begin().await.unwrap();
+    sqlx::query("ALTER TABLE ledger_transactions DISABLE TRIGGER USER")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE orders SET created_at = now() - interval '1 day' WHERE id = $1::uuid")
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE ledger_transactions SET occurred_at = now() - interval '1 day' WHERE order_id = $1::uuid",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query("ALTER TABLE ledger_transactions ENABLE TRIGGER USER")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let r = as_boss(&sh, &format!("/api/v1/orders/{id}/cancel"), json!({})).await;
+    assert_eq!(r.status(), 200, "{:?}", r.json());
+
+    let yesterday = (today_ist() - chrono::Days::new(1)).to_string();
+    let y = daily(&sh, &sh.boss, &format!("?date={yesterday}"))
+        .await
+        .json();
+    assert_eq!(y["sales_total"], "200.00");
+    assert_eq!(y["cash_received"], "200.00");
+    assert_eq!(y["cancelled_count"], 0);
+    assert_eq!(y["refunds_cash"], "0.00");
+
+    let t = daily(&sh, &sh.boss, "").await.json();
+    assert_eq!(t["cancelled_count"], 1);
+    assert_eq!(t["cancelled_total"], "200.00");
+    assert_eq!(t["refunds_cash"], "200.00");
+    assert_eq!(t["owed_reduced"], "0.00");
+    assert_eq!(t["sales_total"], "0.00");
+}
+
+#[sqlx::test]
+async fn daily_summary_returns_and_refunds(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = sell(&sh, 3, json!([{"method": "cash", "amount": "100"}])).await;
+    let id = o["id"].as_str().unwrap();
+    let line: Uuid = sqlx::query_scalar("SELECT id FROM order_lines WHERE order_id = $1::uuid")
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let r = as_boss(
+        &sh,
+        &format!("/api/v1/orders/{id}/returns"),
+        json!({"lines": [{"order_line_id": line, "quantity": 3, "disposition": "sellable"}],
+               "refund_method": "cash"}),
+    )
+    .await;
+    assert_eq!(r.status(), 201, "{:?}", r.json());
+
+    let t = daily(&sh, &sh.boss, "").await.json();
+    assert_eq!(t["returns_total"], "300.00");
+    assert_eq!(t["refunds_cash"], "100.00");
+    assert_eq!(t["refunds_upi"], "0.00");
+    assert_eq!(t["owed_reduced"], "200.00");
+    assert_eq!(t["cancelled_count"], 0);
+    // The sale still counts in full, and the original figures are untouched.
+    assert_eq!(t["sales_total"], "300.00");
+    assert_eq!(t["cash_received"], "100.00");
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT count(*) AS \"count!\",\n                  COALESCE(SUM(o.total), 0) AS \"total!\",\n                  COALESCE(SUM((SELECT SUM(l.quantity * l.list_price) FROM order_lines l\n                                 WHERE l.order_id = o.id)), 0) AS \"list_total!\"\n           FROM orders o\n           WHERE o.status = 'confirmed' AND o.created_at >= $1 AND o.created_at < $2",
+  "query": "SELECT count(*) AS \"count!\",\n                  COALESCE(SUM(o.total), 0) AS \"total!\",\n                  COALESCE(SUM((SELECT SUM(l.quantity * l.list_price) FROM order_lines l\n                                 WHERE l.order_id = o.id)), 0) AS \"list_total!\"\n           FROM orders o\n           WHERE o.created_at >= $1 AND o.created_at < $2",
   "describe": {
     "columns": [
       {
@@ -34,5 +34,5 @@
       null
     ]
   },
-  "hash": "c2cb1c612fee6b47b0643d7ad7bcc3f16942a649175d77ce2901a20d16185103"
+  "hash": "25a3e32eb20ae3431ce0c18716e5c83d2ac97e2a44914b04c6345d9a61f23a28"
 }
