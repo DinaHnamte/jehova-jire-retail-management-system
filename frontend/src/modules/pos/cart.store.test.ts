@@ -77,6 +77,41 @@ describe('cart store', () => {
     expect(fresh().chargeKey(cash)).toBe(k2)
   })
 
+  it('reopening after a failed charge gives back the same payments and the same key', () => {
+    const c = fresh()
+    c.add(hit('a'))
+    expect(c.pendingPayments).toBeNull()
+    const split = [
+      { method: 'cash' as const, amount: '200.00' },
+      { method: 'upi' as const, amount: '250.00' },
+    ]
+    const k = c.chargeKey(split) // the charge fails with no reply
+    const again = fresh() // the page is reloaded
+    expect(again.pendingPayments).toEqual(split)
+    expect(again.chargeKey(again.pendingPayments!)).toBe(k)
+  })
+
+  it('pay later is remembered as no payments', () => {
+    const c = fresh()
+    c.add(hit('a'))
+    c.setNewCustomer({ phone: '9876543210', name: '' })
+    c.chargeKey([])
+    expect(fresh().pendingPayments).toEqual([])
+  })
+
+  it('no pending payments once the cart changes or the sale is cleared', () => {
+    const c = fresh()
+    c.add(hit('a'))
+    c.chargeKey([{ method: 'cash', amount: '450.00' }])
+    c.setQty('a', 2)
+    expect(c.pendingPayments).toBeNull()
+    c.chargeKey([{ method: 'cash', amount: '900.00' }])
+    c.clear()
+    expect(c.pendingPayments).toBeNull()
+    localStorage.setItem('jj.cart.v1', JSON.stringify({ lines: [], key: { body: '{bad', value: 'k' } }))
+    expect(fresh().pendingPayments).toBeNull()
+  })
+
   it('toBody shapes the request', () => {
     const c = fresh()
     c.add(hit('a'))

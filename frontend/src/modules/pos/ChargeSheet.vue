@@ -19,11 +19,20 @@ const cash = ref('')
 const upi = ref('')
 const error = ref<string | null>(null)
 const busy = ref(false)
+/** A charge was sent with no known result; it is shown as it was so a retry reuses its key. */
+const pending = ref(false)
 
 function open() {
   if (dialog.value?.open) return
-  cash.value = store.totals.total
-  upi.value = ''
+  const sent = store.pendingPayments
+  pending.value = sent !== null
+  if (sent) {
+    cash.value = sent.find((p) => p.method === 'cash')?.amount ?? '0'
+    upi.value = sent.find((p) => p.method === 'upi')?.amount ?? ''
+  } else {
+    cash.value = store.totals.total
+    upi.value = ''
+  }
   error.value = null
   dialog.value?.showModal()
   nextTick(() => dialog.value?.querySelector<HTMLInputElement>('input[name=cash]')?.select())
@@ -94,6 +103,9 @@ function handleError(e: unknown) {
       <p class="figure mt-2 text-4xl">{{ formatRupees(store.totals.total) }}</p>
       <p class="mt-1 text-sm text-muted">{{ store.count }} item{{ store.count === 1 ? '' : 's' }}</p>
 
+      <p v-if="pending && !error" role="status" class="mt-4 rounded-control bg-golden-tint px-4 py-3 font-medium text-golden-ink">
+        This sale may already have gone through. Check Sales before changing anything.
+      </p>
       <p v-if="error" role="alert" class="mt-4 rounded-control bg-danger-tint px-4 py-3 font-medium text-danger">{{ error }}</p>
 
       <div class="mt-4 grid grid-cols-2 gap-3">

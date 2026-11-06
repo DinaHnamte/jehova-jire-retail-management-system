@@ -12,7 +12,6 @@ interface NewCustomer {
   name: string
 }
 
-
 interface Persisted {
   lines: CartLine[]
   orderDiscount: string
@@ -60,6 +59,30 @@ function save(s: Persisted) {
   }
 }
 
+function buildBody(s: Persisted, payments: CheckoutPayment[]): CheckoutBody {
+  const body: CheckoutBody = {
+    lines: s.lines.map((l) => ({
+      product_id: l.productId,
+      quantity: l.quantity,
+      unit_price: l.unitPrice,
+      line_discount: l.lineDiscount,
+    })),
+    order_discount: s.orderDiscount,
+    payments: payments.map((p) => ({ method: p.method, amount: p.amount })),
+  }
+  if (s.customer) body.customer_id = s.customer.id
+  else if (s.newCustomer) {
+    const name = s.newCustomer.name.trim()
+    body.new_customer = name ? { phone: s.newCustomer.phone, name } : { phone: s.newCustomer.phone }
+  }
+  return body
+}
+
+const validPayment = (p: unknown): p is CheckoutPayment => {
+  const x = p as Record<string, unknown> | null
+  return !!x && (x.method === 'cash' || x.method === 'upi') && typeof x.amount === 'string' && MONEY.test(x.amount)
+}
+
 export const useCartStore = defineStore('cart', {
   state: (): Persisted => {
     const d = load()
@@ -79,6 +102,25 @@ export const useCartStore = defineStore('cart', {
       return this.lines.length > 0 && this.problems.length === 0
     },
     count: (s) => s.lines.reduce((n, l) => n + l.quantity, 0),
+    /**
+     * The payments of a charge that was sent but not known to have gone through (its key is
+     * still held and the cart has not changed since). Charging again with exactly these
+     * payments resends the same body with the same key, so the server makes one sale.
+     * Null when no such charge is pending.
+     */
+    pendingPayments: (s): CheckoutPayment[] | null => {
+      if (!s.key) return null
+      let sent: unknown
+      try {
+        sent = JSON.parse(s.key.body)
+      } catch {
+        return null
+      }
+      const payments = (sent as { payments?: unknown } | null)?.payments
+      if (!Array.isArray(payments) || !payments.every(validPayment)) return null
+      const ps = payments.map((p) => ({ method: p.method, amount: p.amount }))
+      return JSON.stringify(buildBody(s, ps)) === s.key.body ? ps : null
+    },
   },
   actions: {
     persist() {
@@ -154,22 +196,7 @@ export const useCartStore = defineStore('cart', {
       this.persist()
     },
     toBody(payments: CheckoutPayment[] = []): CheckoutBody {
-      const body: CheckoutBody = {
-        lines: this.lines.map((l) => ({
-          product_id: l.productId,
-          quantity: l.quantity,
-          unit_price: l.unitPrice,
-          line_discount: l.lineDiscount,
-        })),
-        order_discount: this.orderDiscount,
-        payments: payments.map((p) => ({ method: p.method, amount: p.amount })),
-      }
-      if (this.customer) body.customer_id = this.customer.id
-      else if (this.newCustomer) {
-        const name = this.newCustomer.name.trim()
-        body.new_customer = name ? { phone: this.newCustomer.phone, name } : { phone: this.newCustomer.phone }
-      }
-      return body
+      return buildBody(this.$state, payments)
     },
     /**
      * Idempotency key for charging with these `payments`. The key belongs to the exact
