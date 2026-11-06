@@ -59,6 +59,8 @@ async function save() {
     const field = e instanceof ApiError ? (e.details as { field?: string })?.field : undefined
     if (e instanceof ApiError && e.code === 'OVERPAYMENT') errors.value.amount = e.message
     else if (field === 'amount' || field === 'method') errors.value[field] = friendlyMessage(e)
+    else if (e instanceof ApiError && e.code === 'NETWORK_ERROR')
+      formError.value = "No connection. Press Record payment again — it won't record twice."
     else formError.value = friendlyMessage(e)
   } finally {
     busy.value = false

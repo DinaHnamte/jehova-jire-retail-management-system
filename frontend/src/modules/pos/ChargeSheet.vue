@@ -76,6 +76,11 @@ async function charge() {
 }
 
 function handleError(e: unknown) {
+  if (e instanceof ApiError && e.code === 'NETWORK_ERROR') {
+    // The same body goes with the same key, so pressing Charge again is safe.
+    error.value = "No connection. Press Charge again — it won't charge twice."
+    return
+  }
   const message = friendlyMessage(e)
   if (e instanceof ApiError) {
     const details = (e.details ?? {}) as { field?: string; product_id?: string }
