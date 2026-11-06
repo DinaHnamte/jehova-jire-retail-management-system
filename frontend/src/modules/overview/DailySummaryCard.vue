@@ -88,7 +88,7 @@ const undone = computed(() => {
     </dl>
 
     <div v-if="undone.length" class="mt-6" role="group" aria-labelledby="undone-h">
-      <h3 id="undone-h" class="text-lg font-bold">Undone today</h3>
+      <h3 id="undone-h" class="text-lg font-bold">{{ date === today ? 'Undone today' : 'Undone that day' }}</h3>
       <dl class="mt-3 grid gap-3 sm:grid-cols-2">
         <div v-for="f in undone" :key="f.label" class="rounded-control bg-canvas px-4 py-3">
           <dt class="text-sm font-semibold text-muted">{{ f.label }}</dt>
