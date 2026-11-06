@@ -46,6 +46,7 @@ pub struct ListItem {
     pub status: String,
     pub recipient_name: String,
     pub locality: String,
+    /// The current driver, else the last one assigned; null when never assigned.
     pub driver: Option<DriverBrief>,
     pub amount_to_collect: String,
     pub fee: String,
@@ -102,14 +103,19 @@ pub async fn list(conn: &mut PgConnection, tab: Tab) -> AppResult<DeliveryList> 
     let done = tab == Tab::Done;
     let rows = sqlx::query!(
         r#"SELECT d.id, d.order_id, o.number AS order_number, d.status, d.recipient_name,
-                  d.locality, d.collector, d.fee, d.current_driver_id,
-                  u.display_name AS "driver_name?", u.is_active AS "driver_active?",
+                  d.locality, d.collector, d.fee,
+                  u.id AS "driver_id?", u.display_name AS "driver_name?",
+                  u.is_active AS "driver_active?",
                   r.owed AS "owed!", s.since AS "since!",
                   (SELECT a.reason FROM delivery_attempts a WHERE a.delivery_id = d.id
                     ORDER BY a.occurred_at DESC, a.id DESC LIMIT 1) AS fail_reason
            FROM deliveries d
            JOIN orders o ON o.id = d.order_id
-           LEFT JOIN users u ON u.id = d.current_driver_id
+           -- The current driver, else whoever had the job last (failed and done tabs).
+           LEFT JOIN users u ON u.id = COALESCE(
+               d.current_driver_id,
+               (SELECT a.driver_id FROM delivery_assignments a WHERE a.delivery_id = d.id
+                 ORDER BY a.assigned_at DESC, a.id DESC LIMIT 1))
            CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e
                                WHERE e.account = 'receivable' AND e.ref_id = d.order_id) r
            CROSS JOIN LATERAL (SELECT COALESCE(MAX(ev.occurred_at), d.created_at) AS since
@@ -135,7 +141,7 @@ pub async fn list(conn: &mut PgConnection, tab: Tab) -> AppResult<DeliveryList> 
     let items = rows
         .into_iter()
         .map(|r| ListItem {
-            driver: match (r.current_driver_id, r.driver_name, r.driver_active) {
+            driver: match (r.driver_id, r.driver_name, r.driver_active) {
                 (Some(id), Some(name), Some(active)) => Some(DriverBrief { id, name, active }),
                 _ => None,
             },

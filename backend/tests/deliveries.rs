@@ -922,3 +922,160 @@ async fn change_status_by_another_driver_is_404(pool: PgPool) {
             .unwrap();
     assert_eq!(note, None);
 }
+
+/// The driver's own status call, committed when it succeeds.
+async fn as_driver(
+    pool: &PgPool,
+    did: &str,
+    driver: &str,
+    change: StatusChange,
+) -> Result<(), AppError> {
+    let (did, me) = (
+        Uuid::parse_str(did).unwrap(),
+        Uuid::parse_str(driver).unwrap(),
+    );
+    let mut tx = pool.begin().await.unwrap();
+    actions::change_status(&mut tx, me, did, change, Some(me)).await?;
+    tx.commit().await.unwrap();
+    Ok(())
+}
+
+fn conflict_status(r: Result<(), AppError>) -> String {
+    match r {
+        Err(AppError::Coded {
+            code: "DELIVERY_STATUS",
+            details,
+            ..
+        }) => details["status"].as_str().unwrap().to_string(),
+        other => panic!("expected DELIVERY_STATUS, got {other:?}"),
+    }
+}
+
+fn delivered() -> StatusChange {
+    StatusChange::Delivered {
+        received_by: "Mary".into(),
+    }
+}
+
+fn failed() -> StatusChange {
+    StatusChange::Failed {
+        reason: jj_retail_api::deliveries::domain::FailReason::CustomerUnavailable,
+        note: None,
+    }
+}
+
+#[sqlx::test]
+async fn driver_repeat_delivered_is_409(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = sale(&sh, 1, "50", "0", None, None).await;
+    let did = delivery_of(&pool, &o).await;
+    let a = driver(&sh, "a", "Lalbiaka", "9862000001", "40").await;
+    ok(assign(&sh, &did, json!({"driver_id": a})).await).await;
+    as_driver(&pool, &did, &a, StatusChange::PickedUp)
+        .await
+        .unwrap();
+    as_driver(&pool, &did, &a, delivered()).await.unwrap();
+    // A double tap after the job left their list is a conflict naming the done status.
+    let r = as_driver(&pool, &did, &a, delivered()).await;
+    assert_eq!(conflict_status(r), "delivered");
+    let r = as_driver(&pool, &did, &a, StatusChange::PickedUp).await;
+    assert_eq!(conflict_status(r), "delivered");
+}
+
+#[sqlx::test]
+async fn driver_repeat_failed_is_409(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = sale(&sh, 1, "50", "0", None, None).await;
+    let did = delivery_of(&pool, &o).await;
+    let a = driver(&sh, "a", "Lalbiaka", "9862000001", "40").await;
+    ok(assign(&sh, &did, json!({"driver_id": a})).await).await;
+    as_driver(&pool, &did, &a, StatusChange::PickedUp)
+        .await
+        .unwrap();
+    as_driver(&pool, &did, &a, failed()).await.unwrap();
+    let r = as_driver(&pool, &did, &a, failed()).await;
+    assert_eq!(conflict_status(r), "failed");
+}
+
+#[sqlx::test]
+async fn reassigned_or_retried_away_driver_stays_404(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let a = driver(&sh, "a", "Lalbiaka", "9862000001", "40").await;
+    let b = driver(&sh, "b", "Mama", "9862000002", "45").await;
+
+    // A had it, it went to B, and B delivered: A's call is still 404.
+    let o = sale(&sh, 1, "50", "0", None, None).await;
+    let did = delivery_of(&pool, &o).await;
+    ok(assign(&sh, &did, json!({"driver_id": a})).await).await;
+    ok(assign(&sh, &did, json!({"driver_id": b})).await).await;
+    as_driver(&pool, &did, &b, StatusChange::PickedUp)
+        .await
+        .unwrap();
+    as_driver(&pool, &did, &b, delivered()).await.unwrap();
+    let r = as_driver(&pool, &did, &a, delivered()).await;
+    assert!(matches!(r, Err(AppError::NotFound)), "{r:?}");
+
+    // A failed it, then the retry went to B: A's repeat tap is 404, not 409.
+    let cid = o["customer"]["id"].as_str().unwrap().to_string();
+    let o = sale(&sh, 1, "50", "0", None, Some(&cid)).await;
+    let did = delivery_of(&pool, &o).await;
+    ok(assign(&sh, &did, json!({"driver_id": a})).await).await;
+    as_driver(&pool, &did, &a, StatusChange::PickedUp)
+        .await
+        .unwrap();
+    as_driver(&pool, &did, &a, failed()).await.unwrap();
+    ok(act(&sh, &sh.m, &did, "retry", json!({"driver_id": b})).await).await;
+    let r = as_driver(&pool, &did, &a, failed()).await;
+    assert!(matches!(r, Err(AppError::NotFound)), "{r:?}");
+}
+
+#[sqlx::test]
+async fn failed_and_done_items_show_last_driver(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let a = driver(&sh, "a", "Lalbiaka", "9862000001", "40").await;
+    let b = driver(&sh, "b", "Mama", "9862000002", "45").await;
+    let o = sale(&sh, 1, "50", "0", None, None).await;
+    let cid = o["customer"]["id"].as_str().unwrap().to_string();
+    let failed_id = delivery_of(&pool, &o).await;
+    let o = sale(&sh, 1, "50", "0", None, Some(&cid)).await;
+    let done_id = delivery_of(&pool, &o).await;
+
+    ok(assign(&sh, &failed_id, json!({"driver_id": a})).await).await;
+    ok(status(&sh, &failed_id, json!({"to": "picked_up"})).await).await;
+    ok(status(
+        &sh,
+        &failed_id,
+        json!({"to": "failed", "reason": "address_not_found"}),
+    )
+    .await)
+    .await;
+    // Reassigned before pickup: the last driver is B, not A.
+    ok(assign(&sh, &done_id, json!({"driver_id": a})).await).await;
+    ok(assign(&sh, &done_id, json!({"driver_id": b})).await).await;
+    ok(status(&sh, &done_id, json!({"to": "picked_up"})).await).await;
+    ok(status(
+        &sh,
+        &done_id,
+        json!({"to": "delivered", "received_by": "Mary"}),
+    )
+    .await)
+    .await;
+    deactivate(&sh, &a).await;
+
+    let f = tab(&sh, "failed").await;
+    assert_eq!(f["items"][0]["id"], failed_id);
+    assert_eq!(
+        f["items"][0]["driver"],
+        json!({"id": a, "name": "Lalbiaka", "active": false})
+    );
+    let d = tab(&sh, "done").await;
+    assert_eq!(d["items"][0]["id"], done_id);
+    assert_eq!(
+        d["items"][0]["driver"],
+        json!({"id": b, "name": "Mama", "active": true})
+    );
+    // Never assigned: still no driver.
+    let o = sale(&sh, 1, "50", "0", None, Some(&cid)).await;
+    delivery_of(&pool, &o).await;
+    assert_eq!(tab(&sh, "to_send").await["items"][0]["driver"], Value::Null);
+}

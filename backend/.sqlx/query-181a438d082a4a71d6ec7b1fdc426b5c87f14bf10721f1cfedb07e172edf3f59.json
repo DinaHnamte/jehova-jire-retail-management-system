@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT driver_id, end_reason FROM delivery_assignments\n             WHERE delivery_id = $1 ORDER BY assigned_at DESC, id DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "driver_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "delivery_assignments",
+            "name": "driver_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "end_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "delivery_assignments",
+            "name": "end_reason"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "181a438d082a4a71d6ec7b1fdc426b5c87f14bf10721f1cfedb07e172edf3f59"
+}

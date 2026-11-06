@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT d.id, d.order_id, o.number AS order_number, d.status, d.recipient_name,\n                  d.locality, d.collector, d.fee, d.current_driver_id,\n                  u.display_name AS \"driver_name?\", u.is_active AS \"driver_active?\",\n                  r.owed AS \"owed!\", s.since AS \"since!\",\n                  (SELECT a.reason FROM delivery_attempts a WHERE a.delivery_id = d.id\n                    ORDER BY a.occurred_at DESC, a.id DESC LIMIT 1) AS fail_reason\n           FROM deliveries d\n           JOIN orders o ON o.id = d.order_id\n           LEFT JOIN users u ON u.id = d.current_driver_id\n           CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e\n                               WHERE e.account = 'receivable' AND e.ref_id = d.order_id) r\n           CROSS JOIN LATERAL (SELECT COALESCE(MAX(ev.occurred_at), d.created_at) AS since\n                               FROM delivery_events ev\n                               WHERE ev.delivery_id = d.id AND ev.kind = 'status') s\n           WHERE d.status = ANY($1)\n             AND (NOT $2 OR COALESCE(d.closed_at, d.delivered_at) >= now() - interval '7 days')\n           ORDER BY CASE WHEN $2 THEN s.since END DESC, s.since ASC, d.id",
+  "query": "SELECT d.id, d.order_id, o.number AS order_number, d.status, d.recipient_name,\n                  d.locality, d.collector, d.fee,\n                  u.id AS \"driver_id?\", u.display_name AS \"driver_name?\",\n                  u.is_active AS \"driver_active?\",\n                  r.owed AS \"owed!\", s.since AS \"since!\",\n                  (SELECT a.reason FROM delivery_attempts a WHERE a.delivery_id = d.id\n                    ORDER BY a.occurred_at DESC, a.id DESC LIMIT 1) AS fail_reason\n           FROM deliveries d\n           JOIN orders o ON o.id = d.order_id\n           -- The current driver, else whoever had the job last (failed and done tabs).\n           LEFT JOIN users u ON u.id = COALESCE(\n               d.current_driver_id,\n               (SELECT a.driver_id FROM delivery_assignments a WHERE a.delivery_id = d.id\n                 ORDER BY a.assigned_at DESC, a.id DESC LIMIT 1))\n           CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e\n                               WHERE e.account = 'receivable' AND e.ref_id = d.order_id) r\n           CROSS JOIN LATERAL (SELECT COALESCE(MAX(ev.occurred_at), d.created_at) AS since\n                               FROM delivery_events ev\n                               WHERE ev.delivery_id = d.id AND ev.kind = 'status') s\n           WHERE d.status = ANY($1)\n             AND (NOT $2 OR COALESCE(d.closed_at, d.delivered_at) >= now() - interval '7 days')\n           ORDER BY CASE WHEN $2 THEN s.since END DESC, s.since ASC, d.id",
   "describe": {
     "columns": [
       {
@@ -93,12 +93,12 @@
       },
       {
         "ordinal": 8,
-        "name": "current_driver_id",
+        "name": "driver_id?",
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "deliveries",
-            "name": "current_driver_id"
+            "table": "users",
+            "name": "id"
           }
         }
       },
@@ -158,7 +158,7 @@
       false,
       false,
       false,
-      true,
+      false,
       false,
       false,
       null,
@@ -166,5 +166,5 @@
       null
     ]
   },
-  "hash": "e0cf3178e2a8f9bf0ed37f9a12632c49bb97083fab0d91ae539eed3b201b07f9"
+  "hash": "c23f78a0c2d5ceca2dd02bf206dc7f74cb130d26641906cd71c856d986cefc38"
 }

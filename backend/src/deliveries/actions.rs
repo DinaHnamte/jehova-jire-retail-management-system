@@ -277,8 +277,26 @@ pub async fn change_status(
     by_driver: Option<Uuid>,
 ) -> AppResult<()> {
     let row = lock(tx, delivery_id).await?;
-    if by_driver.is_some_and(|d| row.current_driver_id != Some(d)) {
-        return Err(AppError::NotFound);
+    if let Some(me) = by_driver
+        && row.current_driver_id != Some(me)
+    {
+        // A repeated tap after this driver finished the job is a conflict the app treats as
+        // done. Anything else (reassigned, cancelled, never theirs) gives no hint it exists.
+        let last = sqlx::query!(
+            "SELECT driver_id, end_reason FROM delivery_assignments
+             WHERE delivery_id = $1 ORDER BY assigned_at DESC, id DESC LIMIT 1",
+            delivery_id
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
+        let finished_by_me = last.is_some_and(|a| {
+            a.driver_id == me && matches!(a.end_reason.as_deref(), Some("completed" | "failed"))
+        });
+        return Err(if finished_by_me {
+            AppError::delivery_status(row.status()?)
+        } else {
+            AppError::NotFound
+        });
     }
     let from = row.status()?;
     let action = match &change {
