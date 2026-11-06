@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { ApiError, friendlyMessage } from '@/shared/api/errors'
 import { formatRupees, parseMoneyInput } from '@/shared/money'
 import { recordPayment, type PayMethod } from '@/modules/pos/api'
-import { makePaymentKey } from './payment-key'
+import { makePaymentSession } from './payment-key'
 
 const props = defineProps<{ customerId: string; owes: string }>()
 const emit = defineEmits<{ saved: [] }>()
@@ -16,13 +16,21 @@ const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
 const result = ref<string | null>(null)
 const busy = ref(false)
-let keyFor = makePaymentKey()
+// One session per customer, kept across openings until a payment succeeds, so a retry
+// after a lost response reuses its key.
+let session = makePaymentSession()
+watch(
+  () => props.customerId,
+  () => (session = makePaymentSession()),
+)
 
 async function open() {
-  keyFor = makePaymentKey() // a fresh key per opening
-  method.value = 'cash'
-  amount.value = props.owes.replace(/\.00$/, '')
-  note.value = ''
+  // A payment that failed (maybe only its response was lost) comes back as it was, so
+  // pressing Record payment again sends the same body with the same key.
+  const p = session.pending()
+  method.value = p?.method ?? 'cash'
+  amount.value = p ? p.amount : props.owes.replace(/\.00$/, '')
+  note.value = p?.note ?? ''
   errors.value = {}
   formError.value = null
   result.value = null
@@ -43,7 +51,8 @@ async function save() {
   const body = { method: method.value, amount: a, ...(note.value.trim() ? { note: note.value.trim() } : {}) }
   busy.value = true
   try {
-    const r = await recordPayment(props.customerId, body, keyFor(body))
+    const r = await recordPayment(props.customerId, body, session.key(body))
+    session.succeeded()
     result.value = `Applied to ${r.applied.map((x) => `${x.number} ${formatRupees(x.amount)}`).join(', ')}`
     emit('saved')
   } catch (e) {
