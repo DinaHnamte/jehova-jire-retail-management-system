@@ -23,6 +23,10 @@ use crate::{
     AppState,
     admin::session::CurrentUser,
     audit, customers,
+    deliveries::{
+        self,
+        input::{DeliveryIn, DeliveryRequest, validate_delivery},
+    },
     error::{AppError, AppResult},
     http::json::ApiJson,
     inventory::{
@@ -52,6 +56,7 @@ pub struct CheckoutRequest {
     #[serde(default)]
     pub payments: Vec<PaymentRequest>,
     pub note: Option<String>,
+    pub delivery: Option<DeliveryRequest>,
 }
 
 #[derive(Deserialize)]
@@ -94,6 +99,7 @@ struct Valid {
     order_discount: Decimal,
     payments: Vec<(Method, Decimal)>,
     note: Option<String>,
+    delivery: Option<DeliveryIn>,
 }
 
 /// Checks every input before any pricing, so the maths never sees a negative or
@@ -178,11 +184,19 @@ fn validate(req: &CheckoutRequest) -> AppResult<Valid> {
     if note.as_ref().is_some_and(|n| n.chars().count() > 500) {
         return Err(field("note", "Keep the note to 500 characters or fewer."));
     }
+    let delivery = req.delivery.as_ref().map(validate_delivery).transpose()?;
+    if delivery.is_some() && req.customer_id.is_none() && req.new_customer.is_none() {
+        return Err(field(
+            "customer_id",
+            "Pick or add the customer for this delivery.",
+        ));
+    }
     Ok(Valid {
         lines,
         order_discount,
         payments,
         note,
+        delivery,
     })
 }
 
@@ -300,6 +314,21 @@ pub async fn checkout(
         ));
     }
 
+    // A delivery adds its fee on top of the goods.
+    let goods = total;
+    let fee = v.delivery.as_ref().map_or(Decimal::ZERO, |d| d.fee);
+    let total = goods + fee;
+    if total > max_money {
+        return Err(field(
+            if v.delivery.is_some() {
+                "delivery.fee"
+            } else {
+                "lines"
+            },
+            "The bill comes to more than ₹99,99,999.99. Lower the fee or split the sale.",
+        ));
+    }
+
     // Payments against the total.
     let paid: Decimal = v.payments.iter().map(|(_, a)| *a).sum();
     if paid > total {
@@ -334,8 +363,8 @@ pub async fn checkout(
     let number = next_number(&mut tx, "receipt", now).await?;
     sqlx::query!(
         "INSERT INTO orders (id, number, customer_id, status, subtotal, order_discount, total,
-                             note, receipt_token, created_by, created_at)
-         VALUES ($1, $2, $3, 'confirmed', $4, $5, $6, $7, $8, $9, $10)",
+                             note, receipt_token, created_by, created_at, fulfilment, delivery_fee)
+         VALUES ($1, $2, $3, 'confirmed', $4, $5, $6, $7, $8, $9, $10, $11, $12)",
         order_id,
         number,
         customer_id,
@@ -345,7 +374,13 @@ pub async fn checkout(
         v.note,
         receipt_token(),
         actor,
-        now
+        now,
+        if v.delivery.is_some() {
+            "delivery"
+        } else {
+            "counter"
+        },
+        fee
     )
     .execute(&mut *tx)
     .await?;
@@ -415,13 +450,20 @@ pub async fn checkout(
                 idempotency_key: format!("order:{order_id}:sale"),
                 note: None,
                 reverses_id: None,
-                entries: vec![
+                entries: [
                     (Account::Receivable(order_id), total),
-                    (Account::SalesRevenue, -total),
-                ],
+                    (Account::SalesRevenue, -goods),
+                    (Account::DeliveryFeeIncome, -fee),
+                ]
+                .into_iter()
+                .filter(|(_, amount)| !amount.is_zero())
+                .collect(),
             },
         )
         .await?;
+    }
+    if let Some(d) = &v.delivery {
+        deliveries::create_for_order(&mut tx, actor, order_id, d).await?;
     }
     let split = v.payments.len() > 1;
     for (method, amount) in &v.payments {

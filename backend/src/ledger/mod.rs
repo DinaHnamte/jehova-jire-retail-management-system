@@ -16,6 +16,7 @@ pub enum Account {
     Upi,
     SalesRevenue,
     SalesReturns,
+    DeliveryFeeIncome,
 }
 
 impl Account {
@@ -26,6 +27,7 @@ impl Account {
             Self::Upi => ("upi", None),
             Self::SalesRevenue => ("sales_revenue", None),
             Self::SalesReturns => ("sales_returns", None),
+            Self::DeliveryFeeIncome => ("delivery_fee_income", None),
         }
     }
 }
@@ -39,6 +41,8 @@ pub enum TxnKind {
     Refund,
     /// A return that reduces what is owed.
     ReturnCredit,
+    /// A delivery fee changed after the sale.
+    FeeAdjustment,
 }
 
 impl TxnKind {
@@ -49,6 +53,7 @@ impl TxnKind {
             Self::Cancel => "cancel",
             Self::Refund => "refund",
             Self::ReturnCredit => "return_credit",
+            Self::FeeAdjustment => "fee_adjustment",
         }
     }
 }

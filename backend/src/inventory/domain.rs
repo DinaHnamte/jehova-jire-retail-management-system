@@ -67,6 +67,7 @@ pub enum SourceType {
     Adjustment,
     Order,
     Return,
+    Delivery,
 }
 
 impl SourceType {
@@ -77,6 +78,7 @@ impl SourceType {
             Self::Adjustment => "adjustment",
             Self::Order => "order",
             Self::Return => "return",
+            Self::Delivery => "delivery",
         }
     }
 }

@@ -4,6 +4,7 @@ pub mod audit;
 pub mod catalog;
 pub mod config;
 pub mod customers;
+pub mod deliveries;
 pub mod error;
 pub mod http;
 pub mod inventory;

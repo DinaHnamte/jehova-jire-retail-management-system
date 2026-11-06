@@ -62,9 +62,39 @@ async fn update_route(
     Ok(Json(repo::update(&s.db, user.id, id, req).await?))
 }
 
+/// The recipient and address from this customer's newest delivery, to prefill the next one.
+async fn last_address_route(
+    State(s): State<AppState>,
+    user: CurrentUser,
+    ApiPath(id): ApiPath<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    user.require("orders.read")?;
+    let row = sqlx::query!(
+        "SELECT d.recipient_name, d.recipient_phone, d.address_line, d.locality,
+                d.landmark, d.instructions
+         FROM deliveries d JOIN orders o ON o.id = d.order_id
+         WHERE o.customer_id = $1
+         ORDER BY d.created_at DESC, d.id DESC
+         LIMIT 1",
+        id
+    )
+    .fetch_optional(&s.db)
+    .await?
+    .ok_or(crate::error::AppError::NotFound)?;
+    Ok(Json(serde_json::json!({
+        "recipient_name": row.recipient_name,
+        "recipient_phone": row.recipient_phone,
+        "address_line": row.address_line,
+        "locality": row.locality,
+        "landmark": row.landmark,
+        "instructions": row.instructions,
+    })))
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/customers", get(list_route).post(create_route))
         .route("/customers/{id}", get(get_route).patch(update_route))
+        .route("/customers/{id}/last-address", get(last_address_route))
         .route("/customers/{id}/payments", post(payments::payment_route))
 }

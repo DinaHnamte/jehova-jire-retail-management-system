@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+pub mod shop;
 use axum::{
     Router,
     body::{Body, Bytes},

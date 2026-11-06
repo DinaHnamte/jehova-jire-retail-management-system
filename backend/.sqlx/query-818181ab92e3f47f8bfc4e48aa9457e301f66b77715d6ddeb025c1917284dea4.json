@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO delivery_events (id, delivery_id, from_status, to_status, kind, actor_id, changes)\n         VALUES ($1, $2, NULL, $3, 'status', $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "818181ab92e3f47f8bfc4e48aa9457e301f66b77715d6ddeb025c1917284dea4"
+}
