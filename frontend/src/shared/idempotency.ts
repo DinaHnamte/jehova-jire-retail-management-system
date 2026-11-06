@@ -24,3 +24,54 @@ export function makeKeyed() {
     },
   }
 }
+
+type Store = Record<string, IssuedKey>
+
+function readStore(storageKey: string): Store {
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) return {}
+    const v: unknown = JSON.parse(raw)
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
+    const out: Store = {}
+    for (const [scope, k] of Object.entries(v as Record<string, unknown>)) {
+      const e = k as Partial<IssuedKey> | null
+      if (e && typeof e.body === 'string' && typeof e.value === 'string') out[scope] = { body: e.body, value: e.value }
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+function writeStore(storageKey: string, s: Store) {
+  try {
+    if (Object.keys(s).length === 0) localStorage.removeItem(storageKey)
+    else localStorage.setItem(storageKey, JSON.stringify(s))
+  } catch {
+    // Storage blocked: keys just won't survive a reload.
+  }
+}
+
+/** Keys kept in localStorage under `storageKey`, one per scope, so a retry survives a reload. */
+export function persistedKeys(storageKey: string) {
+  return {
+    /** The key for `body` under `scope`: unchanged for the same body, new for a different one. */
+    key(scope: string, body: unknown): string {
+      const s = readStore(storageKey)
+      const issued = nextKey(s[scope] ?? null, body)
+      s[scope] = issued
+      writeStore(storageKey, s)
+      return issued.value
+    },
+    /** The serialized body last issued a key under `scope`, if any. */
+    pendingBody(scope: string): string | null {
+      return readStore(storageKey)[scope]?.body ?? null
+    },
+    clear(scope: string) {
+      const s = readStore(storageKey)
+      delete s[scope]
+      writeStore(storageKey, s)
+    },
+  }
+}

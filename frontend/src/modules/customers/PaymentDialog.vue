@@ -18,10 +18,10 @@ const result = ref<string | null>(null)
 const busy = ref(false)
 // One session per customer, kept across openings until a payment succeeds, so a retry
 // after a lost response reuses its key.
-let session = makePaymentSession()
+let session = makePaymentSession(props.customerId)
 watch(
   () => props.customerId,
-  () => (session = makePaymentSession()),
+  () => (session = makePaymentSession(props.customerId)),
 )
 
 async function open() {
@@ -56,6 +56,8 @@ async function save() {
     result.value = `Applied to ${r.applied.map((x) => `${x.number} ${formatRupees(x.amount)}`).join(', ')}`
     emit('saved')
   } catch (e) {
+    // A 4xx is the server's final answer for this body: a fresh attempt gets a fresh key.
+    if (e instanceof ApiError && e.status >= 400 && e.status < 500) session.succeeded()
     const field = e instanceof ApiError ? (e.details as { field?: string })?.field : undefined
     if (e instanceof ApiError && e.code === 'OVERPAYMENT') errors.value.amount = e.message
     else if (field === 'amount' || field === 'method') errors.value[field] = friendlyMessage(e)
