@@ -384,6 +384,10 @@ Movement types:
 | `adjustment_in` / `adjustment_out` | ± | stock count difference, with a reason |
 | `transfer_in` / `transfer_out` | ± | future, multi-location |
 
+Sale movements carry no `unit_cost`. The cost at the time of sale
+(average cost, 4 decimal places) is stored on `order_lines.unit_cost`
+and is what margin reports use.
+
 Returned goods that are damaged or need inspection are **not** put back
 as sellable stock. They get a `damage` movement or an
 `inspection` hold (a separate location), chosen by the person.
@@ -439,26 +443,24 @@ Counter sales and delivery orders are the same `orders` entity
 | Field | Values |
 |---|---|
 | `fulfilment` | `counter`, `delivery` |
-| `status` | `draft` → `confirmed` → `completed`; or `cancelled`; `voided` (manager only) |
-| `payment_status` | derived: `unpaid`, `partially_paid`, `paid`, `refunded`, `partially_refunded` |
+| `status` | `confirmed` or `cancelled` (cancel arrives in Phase 5b) |
+| `payment_status` | derived from the ledger: `unpaid`, `partially_paid`, `paid` (refund states come with returns) |
 
 ```mermaid
 stateDiagram-v2
-    [*] --> draft
-    draft --> confirmed: confirm (stock out, number assigned, receivable posted)
-    draft --> [*]: discard
-    confirmed --> completed: counter: paid in full / delivery: delivered and paid
+    [*] --> confirmed: checkout (stock out, number assigned, receivable posted)
     confirmed --> cancelled: before handover (stock back, receivable reversed)
-    completed --> voided: manager, with reason (reversal entries)
 ```
 
-- A **counter sale** normally goes draft → confirmed → paid →
-  completed in one go. On screen it's one "Charge" button that makes a
-  single API call.
+- There is no stored `completed` status and no stored draft. Whether an
+  order is paid is worked out from the ledger. The cart lives on the
+  phone until Charge. Phase 6 may add delivery states.
+- A **counter sale** is one "Charge" button that makes a single API
+  call (`POST /orders/checkout`).
 - A **delivery order** is confirmed (stock set aside, number assigned)
   and may stay unpaid until the driver collects. Its delivery steps are
   tracked in [Delivery.md](Delivery.md).
-- Drafts are held carts. They don't affect stock or money.
+- Voids (manager only, with reversal entries) are still planned.
 
 ### 10.2 What happens at confirmation
 
@@ -490,31 +492,32 @@ Every money event is one `ledger_transactions` row with two or more
 zero**; a deferred constraint trigger enforces this. Debits are
 positive, credits negative.
 
-Accounts (`account` + optional `ref_id`):
+Accounts (`account` + optional `ref_id`). Built in Phase 5a: `receivable`,
+`cash`, `upi`, `sales_revenue`; the rest arrive with their phases.
 
 | Account | ref | Meaning |
 |---|---|---|
 | `receivable` | order | What the customer still owes on this order |
-| `cash_till` | location | Cash in the shop |
-| `upi_bank` | — | UPI, card or bank money received by the shop |
+| `cash` | — | Cash in the shop (one person, no till) |
+| `upi` | — | UPI, card or bank money received by the shop |
 | `sales_revenue` | — | Goods sold, after discounts |
 | `tax_payable` | — | GST collected (only when GST is on) |
 | `delivery_fee_income` | — | Delivery fees charged to customers |
 | `driver_custody` | driver | Shop money a driver is currently holding |
 | `driver_payable` | driver | What the shop owes a driver for deliveries |
 | `delivery_expense` | — | Cost of driver pay |
-| `sales_returns` | — | Refunds of goods sold |
+| `sales_returns` | — | Refunds of goods sold (reserved; used from Phase 5b) |
 
 Postings:
 
 | Event | Entries |
 |---|---|
 | Confirm order ₹1,000 + ₹70 fee | Dr `receivable[o]` 1,070 · Cr `sales_revenue` 1,000 · Cr `delivery_fee_income` 70 |
-| Customer pays cash at counter | Dr `cash_till` · Cr `receivable[o]` |
-| Customer pays UPI to shop | Dr `upi_bank` · Cr `receivable[o]` |
+| Customer pays cash at counter | Dr `cash` · Cr `receivable[o]` |
+| Customer pays UPI to shop | Dr `upi` · Cr `receivable[o]` |
 | Driver collects cash at the door | Dr `driver_custody[d]` · Cr `receivable[o]` |
-| Driver hands cash to shop | Dr `cash_till` · Cr `driver_custody[d]` |
-| Refund cash | Dr `sales_returns` · Cr `cash_till` |
+| Driver hands cash to shop | Dr `cash` · Cr `driver_custody[d]` |
+| Refund cash | Dr `sales_returns` · Cr `cash` |
 
 Driver earnings, keeping the fee, and payouts are covered in
 [Delivery.md §6](Delivery.md#6-money).
@@ -526,6 +529,12 @@ Rules:
 - A transaction records the method (cash/UPI/card/bank), who
   physically received the money, an optional external reference (e.g. a
   UPI reference number), and an **idempotency key** (unique).
+- Money-moving requests (checkout, customer payments) must send an
+  `Idempotency-Key` header. Replays are answered from the generic
+  `idempotency_keys` table.
+- The nightly check also reports `ledger_unbalanced` transactions and
+  `receivable_out_of_range` balances (below zero or above the order
+  total), alongside the stock check (§8.1).
 - `payment_status` and every balance shown on screen are calculated
   from entries, never stored as editable fields.
 - Recording a UPI payment means "staff say it arrived". A UPI payment
@@ -554,17 +563,22 @@ one shop's volume.
 
 ### 10.6 Customer credit
 
-Not in v1 for counter sales: a counter sale has to be paid in full to
-complete. Delivery orders may be unpaid until delivery. The ledger
-already supports an outstanding receivable, so allowing credit later is
-mainly a permission and UI change.
+Allowed for every sale. The customer pays now, pays part, or pays
+later; a sale with anything unpaid needs a customer (phone number). A
+later payment is recorded against the customer
+(`POST /customers/{id}/payments`) and applied to their unpaid sales
+oldest first. Each customer's balance is the sum of their open
+receivables.
 
 ### 10.7 Receipts
 
-The server returns receipt data. The frontend renders it with an 80mm /
-58mm print stylesheet and calls `window.print()`. That works with any
-thermal printer that has an OS driver. Direct ESC/POS printing is
-deferred until the printer model is known.
+No printing. A receipt is a WhatsApp click-to-chat message (plain text
+built by the server) plus a public receipt page at `/r/{token}`. The
+token is 128-bit random and stored on the order. The page reads
+`GET /api/v1/public/receipts/{token}` (no login, rate-limited to 60
+requests a minute per IP). Links use `PUBLIC_URL` (default
+`https://jehovah-jire.hnamtek.in`). Direct ESC/POS printing stays in
+"Later".
 
 ## 11. Pricing and tax
 
@@ -675,8 +689,8 @@ are `timestamptz` in UTC. Money is `NUMERIC(12,2)`.
 | Catalogue | `brands`, `categories`, `products`, `product_identifiers`, `product_images`, `attribute_vocabulary` |
 | Inventory | `locations`, `stock_balances`, `stock_movements`, `stock_counts`, `stock_count_lines` |
 | Purchasing | `suppliers`, `purchase_orders`, `purchase_order_lines`, `goods_receipts`, `goods_receipt_lines` |
-| Orders | `customers`, `orders`, `order_lines`, `returns`, `return_lines` |
-| Money | `ledger_transactions`, `ledger_entries` |
+| Orders | `customers`, `orders`, `order_lines` (built); `returns`, `return_lines` (Phase 5b) |
+| Money | `ledger_transactions`, `ledger_entries`, `idempotency_keys` |
 | Delivery | see [Delivery.md §8](Delivery.md#8-data-model) |
 
 ```mermaid
@@ -762,11 +776,13 @@ different body returns 409.
 | Identifiers | `POST /products/{id}/identifiers`, `DELETE /products/{id}/identifiers/{iid}` |
 | Inventory | `GET /inventory/balances`, `GET /inventory/movements`, `POST /inventory/adjustments`, `POST /inventory/counts` |
 | Purchasing | `GET/POST /suppliers`, `GET/POST /purchase-orders`, `POST /goods-receipts`, `POST /goods-receipts/{id}/confirm` |
-| Orders | `POST /orders` (draft), `PATCH /orders/{id}`, `POST /orders/{id}/confirm`, `POST /orders/{id}/cancel`, `POST /orders/{id}/void`, `GET /orders/{id}`, `GET /orders/{id}/receipt` |
-| Counter sale | `POST /orders/checkout` — draft + confirm + payment in one call |
-| Payments | `POST /orders/{id}/payments`, `POST /ledger/transactions/{id}/verify`, `POST /ledger/transactions/{id}/reverse` |
-| Returns | `POST /returns` |
-| Reports | `GET /reports/daily`, `/reports/sales`, `/reports/stock`, `/reports/movements`, `/reports/cash` |
+| Orders (built) | `POST /orders/checkout` (one call: confirm, stock out, payment; needs `Idempotency-Key`), `GET /orders`, `GET /orders/{id}` |
+| Orders (5b) | `POST /orders/{id}/cancel`, `POST /orders/{id}/void` |
+| Customers (built) | `GET/POST /customers`, `GET/PATCH /customers/{id}`, `POST /customers/{id}/payments` (needs `Idempotency-Key`) |
+| Receipts | `GET /public/receipts/{token}` (no login, 60/min/IP) |
+| Ledger (later) | `POST /ledger/transactions/{id}/verify`, `POST /ledger/transactions/{id}/reverse` |
+| Returns (5b) | `POST /returns` |
+| Reports | `GET /reports/daily` (built), `/reports/sales`, `/reports/stock`, `/reports/movements`, `/reports/cash` |
 | Admin | `GET/POST/PATCH /users`, `GET/PATCH /settings` |
 | Delivery | see [Delivery.md §7](Delivery.md#7-api) |
 
@@ -840,7 +856,8 @@ Revenue is never labelled as profit.
   step fails, void/return reversals, reconciliation job.
 - **End-to-end (Playwright):** register a product by scanning
   (fixture image fed to the camera) → receive stock → counter sale →
-  receipt → return. Delivery flow in
+  receipt → return. Still to be added in Phase 7 (Phase 5a has
+  backend integration tests and frontend unit tests only). Delivery flow in
   [Delivery.md §10](Delivery.md#10-acceptance-criteria-v1).
 
 ## 20. Roadmap
@@ -858,7 +875,9 @@ Each phase is a working vertical slice with exit criteria.
 | **7. Go-live readiness** | Reports, audit views, backups + **restore drill**, uptime alerting, staff guide, test on shop devices | [Operations.md](Operations.md) checklist complete |
 | **Later** | Offer board, customer credit, GST go-live, ESC/POS printing, multi-location, payment gateway, accounting export | — |
 
-**Status (6 Nov 2026):** Phases 1 and 2 are live. Phase 3 (scanner) is
+**Status (6 Nov 2026):** Phase 5a (selling: POS checkout, customers and
+credit, ledger, receipts, daily summary) is built on branch
+`phase-5a-sell`; 5b (cancel, returns) is next. Phases 1 and 2 are live. Phase 3 (scanner) is
 parked after its spike (§7.5). Phase 4 is built: stock ledger, opening
 and recounts, goods receipts with weighted-average cost, adjustments,
 suppliers and the nightly stock check; its exit criterion is pinned by
@@ -870,8 +889,8 @@ the test `every_unit_traces_to_a_confirmed_source`.
 |---|---|
 | ~~Photos of real Ektra labels~~ 5 received 5 Nov 2026; more welcome for the corpus | Phase 3 |
 | Which devices: Android phones (Samsung, Realme, …) — answered 5 Nov 2026; exact models still useful for the spike | Phase 3 spike |
-| Receipt printer: model, 58 or 80 mm, USB or Bluetooth | Phase 5 |
-| Number of cashiers; is shift/till open-close needed? | Phase 5 |
+| ~~Receipt printer~~ None; receipts go by WhatsApp (answered 6 Nov 2026) | Phase 5 |
+| ~~Number of cashiers; till open-close?~~ One person, no till (answered 6 Nov 2026) | Phase 5 |
 | Delivery zones and fees; default driver pay per delivery | Phase 6 |
 | ~~Roughly how many products (SKUs) at launch?~~ About 500; lists are paged (answered 5 Nov 2026) | Phase 2 |
 

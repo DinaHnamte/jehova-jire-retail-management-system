@@ -50,6 +50,14 @@ sudo systemd-run --pty --wait --collect --uid=jj-retail --gid=jj-retail \
   /opt/jj-retail/current/jj-retail-api create-admin --username admin --display-name "Owner"
 ```
 
+`PUBLIC_URL` (in `/etc/jj-retail/env`) is the site address used in receipt links sent on
+WhatsApp. It defaults to `https://jehovah-jire.hnamtek.in`, which is the production domain, so
+set it only if the site is served from a different address. `deploy/env.production.example`
+already lists it.
+
+Database migrations (including the Phase 5a sales schema) run automatically on every
+`deploy.sh` run, before the new release goes live, so no manual step is needed.
+
 Backups and monitoring: Operations.md §2–3 (set up before go-live).
 
 ## Rollback

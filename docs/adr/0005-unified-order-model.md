@@ -28,3 +28,11 @@ create, confirm and pay in one transaction.
   `delivery_return` movements. History is never edited.
 - Customer credit for counter sales becomes a permission and UI change
   later, because the ledger already supports an unpaid balance.
+
+## Update, 6 Nov 2026 (Phase 5a)
+Built differently from the text above: `orders.status` is only
+`confirmed` or `cancelled`. There is no stored `draft` or `completed`;
+paid, partly paid and unpaid are calculated from the money ledger. The
+rest of the decision stands (one table, stock out at confirmation, one
+checkout call). Customer credit is allowed for all sales, as the last
+consequence anticipated.
