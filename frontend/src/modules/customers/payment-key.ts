@@ -1,32 +1,18 @@
-import { persistedKeys } from '@/shared/idempotency'
-import type { CustomerPaymentBody } from '@/modules/pos/api'
-
-const keys = persistedKeys('jj.payment.v1')
+import { attemptSession } from '@/shared/idempotency'
+import type { CustomerPaymentBody, PayMethod } from '@/modules/pos/api'
 
 /**
- * Keys for one customer's later payments. The key follows the exact body (method, amount,
- * note) and is kept in localStorage until a payment succeeds or the server rejects it, not
- * just while the dialog is open: after a lost response the same payment, retried even after
- * closing the dialog or reloading the page, reuses its key, so the server records it once.
- * `pending()` is the last body tried and not known to have been answered.
+ * One customer's later payments. A payment that got no answer stays pending in localStorage
+ * (also across closing the dialog or a reload). When the dialog opens with one pending, the
+ * user chooses: retry it (same body, same key, so the server records it once) or start a new
+ * payment (new key). A new payment never reuses the old key.
  */
 export function makePaymentSession(customerId: string) {
-  return {
-    key(body: CustomerPaymentBody): string {
-      return keys.key(customerId, body)
-    },
-    pending(): CustomerPaymentBody | null {
-      const raw = keys.pendingBody(customerId)
-      if (raw === null) return null
-      try {
-        return JSON.parse(raw) as CustomerPaymentBody
-      } catch {
-        return null
-      }
-    },
-    /** The server answered (paid, or rejected the body): the next try is a new payment with a new key. */
-    succeeded() {
-      keys.clear(customerId)
-    },
-  }
+  return attemptSession<CustomerPaymentBody>('jj.payment.v1', customerId)
+}
+
+/** "₹500 (cash)" for the pending-payment notice. */
+export function describePayment(b: CustomerPaymentBody, rupees: (s: string) => string): string {
+  const m: Record<PayMethod, string> = { cash: 'cash', upi: 'UPI' }
+  return `${rupees(b.amount)} (${m[b.method]})`
 }

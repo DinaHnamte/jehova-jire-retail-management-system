@@ -1,18 +1,24 @@
 // Idempotency keys for cancelling a sale or taking a return, kept in localStorage so a retry
-// after a lost response, or after a reload, sends the same key with the same body.
-import { persistedKeys } from '@/shared/idempotency'
-import type { Disposition, PayMethod, ReturnBody } from '@/modules/pos/api'
+// after a lost response, or after a reload, sends the same key with the same body. A pending
+// attempt is only reused when the user chooses "Retry it".
+import { attemptSession, persistedKeys } from '@/shared/idempotency'
+import type { CancelBody, Disposition, PayMethod, ReturnBody } from '@/modules/pos/api'
 
-const keys = persistedKeys('jj.undo.v1')
+const STORE = 'jj.undo.v1'
 
-/** The key for `body` under `scope`: unchanged for the same body, new for a different one. */
-export function pendingUndoKey(scope: string, body: unknown): string {
-  return keys.key(scope, body)
+export function cancelSession(orderId: string) {
+  return attemptSession<CancelBody>(STORE, `cancel:${orderId}`)
 }
 
-/** Forget the key once the request has succeeded. */
-export function clearUndoKey(scope: string) {
-  keys.clear(scope)
+export function returnSession(orderId: string) {
+  return attemptSession<ReturnBody>(STORE, `return:${orderId}`)
+}
+
+/** The order is cancelled: nothing more can be cancelled or returned on it, so forget its attempts. */
+export function forgetOrderAttempts(orderId: string) {
+  const keys = persistedKeys(STORE)
+  keys.clear(`cancel:${orderId}`)
+  keys.clear(`return:${orderId}`)
 }
 
 /** The request body for a return: only lines being returned, a refund method only when one is chosen. */

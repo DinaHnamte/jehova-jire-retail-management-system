@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { makePaymentSession } from './payment-key'
+import { describePayment, makePaymentSession } from './payment-key'
 
 function fakeStorage() {
   const m = new Map<string, string>()
@@ -12,72 +12,60 @@ function fakeStorage() {
 
 const body = (amount: string, method: 'cash' | 'upi' = 'cash') => ({ method, amount, note: 'x' })
 
+/** Open the dialog with nothing pending and try to pay; the response is lost. */
+function lost(customer: string, b = body('500.00')): string {
+  const s = makePaymentSession(customer)
+  expect(s.open()).toBeNull()
+  return s.key(b)
+}
+
 describe('payment key', () => {
   beforeEach(() => vi.stubGlobal('localStorage', fakeStorage()))
 
-  it('same body, same key', () => {
+  it('same body, same key; a changed body gets a new key', () => {
     const s = makePaymentSession('c1')
-    expect(s.key(body('200.00'))).toBe(s.key(body('200.00')))
-  })
-  it('changed amount or method gives a new key', () => {
-    const s = makePaymentSession('c1')
+    s.open()
     const a = s.key(body('200.00'))
-    const b = s.key(body('150.00'))
-    const c = s.key(body('150.00', 'upi'))
-    expect(new Set([a, b, c]).size).toBe(3)
-  })
-  it('reverting does not bring back the old key', () => {
-    const s = makePaymentSession('c1')
-    const a = s.key(body('200.00'))
-    s.key(body('150.00'))
-    expect(s.key(body('200.00'))).not.toBe(a)
-  })
-  it('each customer has its own keys', () => {
-    expect(makePaymentSession('c1').key(body('1.00'))).not.toBe(makePaymentSession('c2').key(body('1.00')))
-  })
-  it('a failed save is remembered until a payment succeeds', () => {
-    // Save → network error → dialog closed and opened again → same payment: same key.
-    const s = makePaymentSession('c1')
-    expect(s.pending()).toBeNull()
-    const a = s.key(body('200.00'))
-    expect(s.pending()).toEqual(body('200.00'))
     expect(s.key(body('200.00'))).toBe(a)
-  })
-  it('after a success the next payment gets a new key', () => {
-    const s = makePaymentSession('c1')
-    const a = s.key(body('200.00'))
-    s.succeeded()
-    expect(s.pending()).toBeNull()
+    expect(s.key(body('150.00'))).not.toBe(a)
     expect(s.key(body('200.00'))).not.toBe(a)
   })
-  it('pending_attempt_survives_reload', () => {
-    const a = makePaymentSession('c1').key(body('200.00'))
-    const reloaded = makePaymentSession('c1')
-    expect(reloaded.pending()).toEqual(body('200.00'))
-    expect(reloaded.key(body('200.00'))).toBe(a)
-    expect(makePaymentSession('c2').pending()).toBeNull()
+
+  it('each customer has its own keys', () => {
+    expect(lost('c1', body('1.00'))).not.toBe(lost('c2', body('1.00')))
   })
-  it('succeeded clears only that customer', () => {
-    makePaymentSession('c1').key(body('200.00'))
-    makePaymentSession('c2').key(body('50.00'))
-    makePaymentSession('c1').succeeded()
-    expect(makePaymentSession('c1').pending()).toBeNull()
-    expect(makePaymentSession('c2').pending()).toEqual(body('50.00'))
-  })
-  it('works without storage', () => {
-    vi.stubGlobal('localStorage', {
-      getItem: () => {
-        throw new Error('blocked')
-      },
-      setItem: () => {
-        throw new Error('blocked')
-      },
-      removeItem: () => {
-        throw new Error('blocked')
-      },
-    })
+
+  it('a later identical payment after a lost response must choose first', () => {
+    // ₹500 cash sent, response lost, page reloaded. Later another ₹500 cash comes in.
+    const k = lost('c1')
     const s = makePaymentSession('c1')
-    expect(s.key(body('1.00'))).toBeTruthy()
-    expect(s.pending()).toBeNull()
+    expect(s.open()).toEqual(body('500.00'))
+    expect(s.needsChoice()).toBe(true)
+    expect(() => s.key(body('500.00'))).toThrow()
+    // Start a new payment: a fresh key, so the server records the second ₹500.
+    s.startNew()
+    expect(s.key(body('500.00'))).not.toBe(k)
+  })
+
+  it('retry it sends the same key', () => {
+    const k = lost('c1')
+    const s = makePaymentSession('c1')
+    s.open()
+    expect(s.retry()).toEqual(body('500.00'))
+    expect(s.key(body('500.00'))).toBe(k)
+  })
+
+  it('done clears only that customer', () => {
+    lost('c1')
+    lost('c2', body('50.00'))
+    makePaymentSession('c1').done()
+    expect(makePaymentSession('c1').open()).toBeNull()
+    expect(makePaymentSession('c2').open()).toEqual(body('50.00'))
+  })
+
+  it('describes the pending payment', () => {
+    const r = (s: string) => `₹${s}`
+    expect(describePayment(body('500.00'), r)).toBe('₹500.00 (cash)')
+    expect(describePayment(body('20.00', 'upi'), r)).toBe('₹20.00 (UPI)')
   })
 })

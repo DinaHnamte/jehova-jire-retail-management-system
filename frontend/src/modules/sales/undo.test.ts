@@ -31,56 +31,63 @@ describe('returnBody', () => {
   })
 })
 
-describe('undo keys', () => {
+describe('undo sessions', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', fakeStorage())
   })
 
-  it('gives the same key for the same body', async () => {
-    const { pendingUndoKey } = await fresh()
-    expect(pendingUndoKey('cancel:1', { reason: 'x' })).toBe(pendingUndoKey('cancel:1', { reason: 'x' }))
+  it('a pending cancel survives a reload and must be chosen', async () => {
+    const { cancelSession } = await fresh()
+    const s = cancelSession('1')
+    expect(s.open()).toBeNull()
+    const k = s.key({ reason: 'x' })
+    const again = (await fresh()).cancelSession('1')
+    expect(again.open()).toEqual({ reason: 'x' })
+    expect(again.needsChoice()).toBe(true)
+    expect(again.retry()).toEqual({ reason: 'x' })
+    expect(again.key({ reason: 'x' })).toBe(k)
   })
 
-  it('keeps the key after a reload', async () => {
-    const a = (await fresh()).pendingUndoKey('cancel:1', {})
-    const b = (await fresh()).pendingUndoKey('cancel:1', {})
-    expect(b).toBe(a)
+  it('start again gives an identical return a new key', async () => {
+    const { returnSession } = await fresh()
+    const body = { lines: [{ order_line_id: 'a', quantity: 1, disposition: 'sellable' as const }] }
+    const s = returnSession('1')
+    s.open()
+    const k = s.key(body)
+    const again = returnSession('1')
+    expect(again.open()).toEqual(body)
+    again.startNew()
+    expect(again.key(body)).not.toBe(k)
   })
 
-  it('gives a new key for a changed body', async () => {
-    const { pendingUndoKey } = await fresh()
-    const a = pendingUndoKey('cancel:1', { reason: 'x' })
-    expect(pendingUndoKey('cancel:1', { reason: 'y' })).not.toBe(a)
+  it('keeps cancel and return and orders apart', async () => {
+    const { cancelSession, returnSession } = await fresh()
+    const a = cancelSession('1')
+    a.open()
+    a.key({})
+    expect(returnSession('1').open()).toBeNull()
+    expect(cancelSession('2').open()).toBeNull()
   })
 
-  it('gives a new key after clear', async () => {
-    const { pendingUndoKey, clearUndoKey } = await fresh()
-    const a = pendingUndoKey('cancel:1', {})
-    clearUndoKey('cancel:1')
-    expect(pendingUndoKey('cancel:1', {})).not.toBe(a)
-  })
-
-  it('keeps scopes apart', async () => {
-    const { pendingUndoKey } = await fresh()
-    expect(pendingUndoKey('cancel:1', {})).not.toBe(pendingUndoKey('cancel:2', {}))
+  it('forgetOrderAttempts clears both scopes of that order only', async () => {
+    const { cancelSession, returnSession, forgetOrderAttempts } = await fresh()
+    for (const s of [cancelSession('1'), returnSession('1'), cancelSession('2')]) {
+      s.open()
+      s.key({ lines: [] })
+    }
+    forgetOrderAttempts('1')
+    expect(cancelSession('1').open()).toBeNull()
+    expect(returnSession('1').open()).toBeNull()
+    expect(cancelSession('2').open()).not.toBeNull()
   })
 
   it('works with corrupt storage', async () => {
     localStorage.setItem('jj.undo.v1', '{not json')
-    const { pendingUndoKey } = await fresh()
-    expect(pendingUndoKey('cancel:1', {})).toMatch(/[0-9a-f-]{36}/)
+    const { cancelSession } = await fresh()
+    const s = cancelSession('1')
+    expect(s.open()).toBeNull()
+    expect(s.key({})).toMatch(/[0-9a-f-]{36}/)
     localStorage.setItem('jj.undo.v1', '[1,2]')
-    expect(pendingUndoKey('cancel:1', {})).toMatch(/[0-9a-f-]{36}/)
-  })
-
-  it('works when storage throws', async () => {
-    vi.stubGlobal('localStorage', {
-      getItem: () => { throw new Error('blocked') },
-      setItem: () => { throw new Error('blocked') },
-      removeItem: () => { throw new Error('blocked') },
-    })
-    const { pendingUndoKey, clearUndoKey } = await fresh()
-    expect(pendingUndoKey('cancel:1', {})).toMatch(/[0-9a-f-]{36}/)
-    expect(() => clearUndoKey('cancel:1')).not.toThrow()
+    expect(cancelSession('1').open()).toBeNull()
   })
 })

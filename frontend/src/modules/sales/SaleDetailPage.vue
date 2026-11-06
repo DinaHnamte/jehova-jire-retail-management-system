@@ -12,6 +12,7 @@ import ReturnDialog from './ReturnDialog.vue'
 import { getCustomer, getOrder, type OrderDetail } from '@/modules/pos/api'
 import { formatWhen } from '@/modules/stock/format'
 import { fmtPhone, statusLabel } from './format'
+import { forgetOrderAttempts } from './undo'
 
 const route = useRoute()
 const session = useSessionStore()
@@ -27,6 +28,8 @@ async function load() {
   try {
     const o = await getOrder(String(route.params.id))
     customerOwes.value = o.customer ? (await getCustomer(o.customer.id)).owes : '0.00'
+    // Nothing more can be cancelled or returned on a cancelled sale: drop any pending attempt.
+    if (o.status === 'cancelled') forgetOrderAttempts(o.id)
     order.value = o
   } catch (e) {
     error.value = friendlyMessage(e)

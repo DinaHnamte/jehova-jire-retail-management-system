@@ -2,8 +2,8 @@
 import { nextTick, ref, watch } from 'vue'
 import { ApiError, friendlyMessage } from '@/shared/api/errors'
 import { formatRupees, parseMoneyInput } from '@/shared/money'
-import { recordPayment, type PayMethod } from '@/modules/pos/api'
-import { makePaymentSession } from './payment-key'
+import { recordPayment, type CustomerPaymentBody, type PayMethod } from '@/modules/pos/api'
+import { describePayment, makePaymentSession } from './payment-key'
 
 const props = defineProps<{ customerId: string; owes: string }>()
 const emit = defineEmits<{ saved: [] }>()
@@ -16,31 +16,55 @@ const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
 const result = ref<string | null>(null)
 const busy = ref(false)
-// One session per customer, kept across openings until a payment succeeds, so a retry
-// after a lost response reuses its key.
+// An earlier payment that got no answer: the user must choose to retry it or start a new one.
+const pending = ref<CustomerPaymentBody | null>(null)
+// One session per customer. A payment that got no answer stays pending (also across a reload)
+// until the server answers it or the user starts a new payment.
 let session = makePaymentSession(props.customerId)
 watch(
   () => props.customerId,
   () => (session = makePaymentSession(props.customerId)),
 )
 
-async function open() {
-  // A payment that failed (maybe only its response was lost) comes back as it was, so
-  // pressing Record payment again sends the same body with the same key.
-  const p = session.pending()
+function fill(p: CustomerPaymentBody | null) {
   method.value = p?.method ?? 'cash'
-  amount.value = p ? p.amount : props.owes.replace(/\.00$/, '')
+  amount.value = (p ? p.amount : props.owes).replace(/\.00$/, '')
   note.value = p?.note ?? ''
+}
+
+async function focusAmount() {
+  await nextTick()
+  dialog.value?.querySelector<HTMLInputElement>('input[name=amount]')?.select()
+}
+
+async function open() {
+  pending.value = session.open()
+  fill(null)
   errors.value = {}
   formError.value = null
   result.value = null
   dialog.value?.showModal()
-  await nextTick()
-  dialog.value?.querySelector<HTMLInputElement>('input[name=amount]')?.select()
+  if (!pending.value) await focusAmount()
+}
+
+/** Send the earlier payment again as it was: same body, same key, so it is recorded once. */
+async function retryPending() {
+  fill(session.retry())
+  pending.value = null
+  await focusAmount()
+}
+
+/** The earlier payment is a separate matter: this one gets a new key. */
+async function startNew() {
+  session.startNew()
+  pending.value = null
+  fill(null)
+  await focusAmount()
 }
 defineExpose({ open })
 
 async function save() {
+  if (session.needsChoice()) return
   errors.value = {}
   formError.value = null
   const a = parseMoneyInput(amount.value)
@@ -52,12 +76,12 @@ async function save() {
   busy.value = true
   try {
     const r = await recordPayment(props.customerId, body, session.key(body))
-    session.succeeded()
+    session.done()
     result.value = `Applied to ${r.applied.map((x) => `${x.number} ${formatRupees(x.amount)}`).join(', ')}`
     emit('saved')
   } catch (e) {
     // A 4xx is the server's final answer for this body: a fresh attempt gets a fresh key.
-    if (e instanceof ApiError && e.status >= 400 && e.status < 500) session.succeeded()
+    if (e instanceof ApiError && e.status >= 400 && e.status < 500) session.done()
     const field = e instanceof ApiError ? (e.details as { field?: string })?.field : undefined
     if (e instanceof ApiError && e.code === 'OVERPAYMENT') errors.value.amount = e.message
     else if (field === 'amount' || field === 'method') errors.value[field] = friendlyMessage(e)
@@ -87,7 +111,15 @@ async function save() {
       <h2 id="pay-title" class="text-xl font-bold">Record payment</h2>
       <p class="mt-1 text-muted">Owes now: <span class="figure font-bold text-ink">{{ formatRupees(owes) }}</span></p>
 
-      <fieldset class="mt-4">
+      <div v-if="pending" role="alert" class="mt-4 rounded-control bg-golden-tint px-4 py-3 text-golden-ink">
+        <p class="font-semibold">Your last payment of {{ describePayment(pending, formatRupees) }} may not have gone through.</p>
+        <div class="mt-3 grid gap-2 sm:grid-cols-2">
+          <button type="button" class="btn-primary" @click="retryPending">Retry it</button>
+          <button type="button" class="btn-secondary" @click="startNew">Start a new payment</button>
+        </div>
+      </div>
+
+      <fieldset class="mt-4" :disabled="!!pending">
         <legend class="font-semibold">Paid by</legend>
         <div class="mt-2 grid grid-cols-2 gap-2">
           <label
@@ -105,20 +137,20 @@ async function save() {
 
       <label class="mt-4 block">
         <span class="font-semibold">Amount (₹)</span>
-        <input v-model="amount" name="amount" class="field mt-1" inputmode="decimal" autocomplete="off" :aria-invalid="!!errors.amount" aria-describedby="pay-amt-err" />
+        <input v-model="amount" name="amount" :disabled="!!pending" class="field mt-1" inputmode="decimal" autocomplete="off" :aria-invalid="!!errors.amount" aria-describedby="pay-amt-err" />
         <span v-if="errors.amount" id="pay-amt-err" class="mt-1 block text-sm font-medium text-danger">{{ errors.amount }}</span>
       </label>
 
       <label class="mt-4 block">
         <span class="font-semibold">Note <span class="font-normal text-muted">(optional)</span></span>
-        <input v-model="note" class="field mt-1" maxlength="200" />
+        <input v-model="note" class="field mt-1" maxlength="200" :disabled="!!pending" />
       </label>
 
       <p v-if="formError" role="alert" class="mt-4 rounded-control bg-danger-tint px-4 py-3 font-medium text-danger">{{ formError }}</p>
 
       <div class="mt-6 flex justify-end gap-2">
         <button type="button" class="btn-secondary" @click="dialog?.close()">Cancel</button>
-        <button type="submit" class="btn-primary" :disabled="busy">Record payment</button>
+        <button type="submit" class="btn-primary" :disabled="busy || !!pending">Record payment</button>
       </div>
     </form>
   </dialog>
