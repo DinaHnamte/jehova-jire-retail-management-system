@@ -296,6 +296,37 @@ async fn insufficient_stock_writes_nothing(pool: PgPool) {
 }
 
 #[sqlx::test]
+async fn sale_and_its_ledger_rows_share_one_time(pool: PgPool) {
+    // Order time and ledger time come from one database clock, so a sale near midnight
+    // lands on the same day in the order list and in the money ledger.
+    let sh = shop(&pool).await;
+    let body = json!({
+        "lines": [{"product_id": sh.p[0], "quantity": 2}],
+        "new_customer": {"phone": "9862012345"},
+        "payments": [{"method": "cash", "amount": "50"}, {"method": "upi", "amount": "50"}]
+    });
+    let r = checkout(&sh.a, &sh.s, Some(&key()), body).await;
+    assert_eq!(r.status(), 201, "{:?}", r.json());
+    let id = Uuid::parse_str(r.json()["id"].as_str().unwrap()).unwrap();
+    let mismatched: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM ledger_transactions t JOIN orders o ON o.id = t.order_id
+         WHERE o.id = $1 AND t.occurred_at <> o.created_at",
+    )
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let rows: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM ledger_transactions WHERE order_id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(rows, 3, "sale plus a cash and a UPI payment");
+    assert_eq!(mismatched, 0, "every ledger row has the order's created_at");
+}
+
+#[sqlx::test]
 async fn retry_with_same_key_makes_one_sale(pool: PgPool) {
     let sh = shop(&pool).await;
     let k = key();

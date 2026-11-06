@@ -6,7 +6,6 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use chrono::Utc;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -327,7 +326,11 @@ pub async fn checkout(
 
     // Number and order row.
     let order_id = new_id();
-    let now = Utc::now();
+    // The database clock at transaction start: the same value the ledger rows default to, so
+    // the order and its money always fall on the same day (and the same fiscal year).
+    let now = sqlx::query_scalar!(r#"SELECT now() AS "now!""#)
+        .fetch_one(&mut *tx)
+        .await?;
     let number = next_number(&mut tx, "receipt", now).await?;
     sqlx::query!(
         "INSERT INTO orders (id, number, customer_id, status, subtotal, order_discount, total,
