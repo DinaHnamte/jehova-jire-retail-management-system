@@ -12,7 +12,7 @@
 
 > **v2.1 (7 Nov 2026).** Phase 6a (dispatch without driver money) is built
 > and changes parts of this document: no delivery zones, no OTP proof,
-> status `to_send` instead of `to_send`, one back-office user,
+> status `to_send` instead of `awaiting_dispatch`, one back-office user,
 > and driver money moved to 6b. The list is in the 6a spec's
 > [Changes from Delivery.md](docs/superpowers/specs/2026-11-07-phase-6a-deliver-design.md#changes-from-deliverymd-v20).
 > Where this document and that spec differ for 6a, the spec is right.
@@ -279,18 +279,22 @@ Both totals come straight from `driver_custody[d]` and
 | Dispatch queue | `GET /deliveries?status=` | `deliveries.read` |
 | Delivery detail (staff) | `GET /deliveries/{id}` | `deliveries.read` |
 | Assign / reassign | `POST /deliveries/{id}/assign` | `deliveries.assign` |
-| Edit arrangement (before pickup) | `PATCH /deliveries/{id}/arrangement` | `deliveries.assign` |
+| Edit arrangement (before pickup) | `PATCH /deliveries/{id}` (built 6a; not `/arrangement`) | `deliveries.assign` |
+| Status on a driver's behalf (owner) | `POST /deliveries/{id}/status` (built 6a) | `deliveries.assign` |
+| Retry a failed delivery | `POST /deliveries/{id}/retry` (built 6a) | `deliveries.assign` |
 | Cancel | `POST /deliveries/{id}/cancel` | `deliveries.cancel` |
 | Check in returned goods | `POST /deliveries/{id}/check-in` | `deliveries.check_in` |
-| My active deliveries | `GET /me/deliveries` | `deliveries.read_own` |
+| My deliveries (active, plus last 20 finished) | `GET /me/deliveries` | `deliveries.read_own` |
 | My delivery detail | `GET /me/deliveries/{id}` | `deliveries.read_own` |
 | Status update | `POST /me/deliveries/{id}/status` | `deliveries.update_own` |
-| Record collection | `POST /me/deliveries/{id}/collections` | `deliveries.collect_own` |
-| My settlement summary | `GET /me/settlement` | `settlements.read_own` |
-| Driver settlement (staff) | `GET /drivers/{id}/settlement` | `settlements.read` |
-| Record handover | `POST /drivers/{id}/handovers` | `settlements.receive` |
-| Pay driver | `POST /drivers/{id}/payouts` | `settlements.pay` |
-| Drivers | `GET/POST /drivers`, `PATCH /drivers/{id}` | `drivers.manage` |
+| Record collection | **6b, not built:** `POST /me/deliveries/{id}/collections` | `deliveries.collect_own` |
+| My settlement summary | **6b, not built:** `GET /me/settlement` | `settlements.read_own` |
+| Driver settlement (staff) | **6b, not built:** `GET /drivers/{id}/settlement` | `settlements.read` |
+| Record handover | **6b, not built:** `POST /drivers/{id}/handovers` | `settlements.receive` |
+| Pay driver | **6b, not built:** `POST /drivers/{id}/payouts` | `settlements.pay` |
+| Fee quote | **Later, dropped in 6a** (fee is typed in): `POST /delivery-fees/quote` | `orders.create` |
+| Zones | **Later, dropped in 6a:** `GET/POST /delivery-zones`, `PATCH /delivery-zones/{id}` | `settings.manage` |
+| Drivers | `GET/POST /drivers`, `PATCH /drivers/{id}`, `POST /drivers/{id}/password` (built 6a) | `drivers.manage` |
 
 **As built in 6a** (endpoint list in
 [Architecture.md §15](Architecture.md#15-api)): a status change that is
@@ -334,9 +338,11 @@ amount to be collected and by whom.
 
 ### 9.2 Dispatch (manager)
 
-Awaiting-dispatch queue · assign driver (pay prefilled from the
-driver's default) · active deliveries by driver · failed deliveries
-needing a decision · settlement per driver · zones.
+*As built in 6a:* the Deliveries screen has To send / Out / Failed /
+Done tabs. From it the owner assigns or reassigns a driver (pay
+prefilled from the driver's default), edits before pickup, acts for a
+driver, retries, checks goods in, or cancels. No zones. Settlement per
+driver arrives in 6b.
 
 ### 9.3 Driver (mobile, `/driver`)
 
@@ -345,9 +351,9 @@ needing a decision · settlement per driver · zones.
 - **Detail:** recipient, `tel:` link, address with a map link (Google
   Maps search URL), instructions, item summary, amount to collect, what
   they keep or hand over.
-- **Actions:** Picked up → Delivered (name or OTP) / Failed (reason).
-  Record collection.
-- **My money:** the settlement summary (§6.5).
+- **Actions:** Picked up → Delivered (recipient name; OTP is later) /
+  Failed (reason). *As built in 6a:* no "Record collection" and no "My
+  money" yet (6b); the screen also shows a short history of finished jobs.
 
 ### 9.4 Messaging in v1
 

@@ -34,7 +34,7 @@ function onDate(e: Event) {
 const figures = computed(() => {
   const d = data.value
   if (!d) return []
-  const list = [
+  return [
     { label: 'Sales', value: String(d.sales_count), how: 'Number of sales rung up that day, not counting cancelled ones.' },
     { label: 'Sales total', value: formatRupees(d.sales_total), how: 'Add up the total of every sale that day, after discounts. Equals paid on these sales plus new amount owed.' },
     ...(toPaise(d.delivery_fees) > 0n
@@ -51,7 +51,6 @@ const figures = computed(() => {
     { label: 'Received on older sales', value: formatRupees(d.received_on_older_sales), how: 'Cash and UPI taken that day against sales from earlier days. Cash plus UPI equals this plus paid on these sales.' },
     { label: 'Owed by all customers', value: formatRupees(d.total_owed), how: 'What every customer owes right now, whatever the date picked.' },
   ]
-  return list
 })
 
 const undone = computed(() => {
