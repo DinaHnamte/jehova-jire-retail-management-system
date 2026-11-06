@@ -4,6 +4,7 @@ pub mod daily;
 pub mod domain;
 pub mod numbers;
 pub mod read;
+pub mod undo;
 pub mod whatsapp;
 
 use axum::{
