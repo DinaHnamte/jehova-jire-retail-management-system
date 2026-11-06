@@ -14,10 +14,19 @@ pub fn money_short(d: Decimal) -> String {
 }
 
 /// The receipt as a WhatsApp message. `payment_methods` are the labels actually paid with
-/// (`cash`, `UPI`), already in display order.
-pub fn receipt_text(r: &PublicReceipt, url: &str, payment_methods: &[&str]) -> String {
+/// (`cash`, `UPI`), already in display order; `refund_methods` likewise for money handed back.
+pub fn receipt_text(
+    r: &PublicReceipt,
+    url: &str,
+    payment_methods: &[&str],
+    refund_methods: &[&str],
+) -> String {
     let date = r.created_at.with_timezone(&ist()).format("%-d %b %Y");
-    let mut out = format!("*{}* — Receipt {}\n{date}\n\n", r.shop_name, r.number);
+    let mut out = format!("*{}* — Receipt {}\n{date}\n", r.shop_name, r.number);
+    if r.cancelled {
+        out.push_str("*Cancelled*\n");
+    }
+    out.push('\n');
     for l in r.lines.iter().take(MAX_ROWS) {
         let what = l.code.as_deref().unwrap_or(&l.name);
         out.push_str(&format!(
@@ -36,11 +45,34 @@ pub fn receipt_text(r: &PublicReceipt, url: &str, payment_methods: &[&str]) -> S
         out.push_str(&format!("Discount — −{}\n", money_short(r.order_discount)));
     }
     out.push_str(&format!("*Total {}*\n", money_short(r.total)));
-    let methods = if payment_methods.is_empty() {
-        String::new()
-    } else {
-        format!(" ({})", payment_methods.join(" + "))
+    let label = |ms: &[&str]| {
+        if ms.is_empty() {
+            String::new()
+        } else {
+            format!(" ({})", ms.join(" + "))
+        }
     };
+    let refunded_line = |out: &mut String| {
+        if r.refunded > Decimal::ZERO {
+            out.push_str(&format!(
+                "Refunded {}{}\n",
+                money_short(r.refunded),
+                label(refund_methods)
+            ));
+        }
+    };
+    if r.cancelled {
+        refunded_line(&mut out);
+        out.push_str(&format!("\nView: {url}"));
+        return out;
+    }
+    let returned: Decimal = r.returned.iter().map(|l| l.amount).sum();
+    if returned > Decimal::ZERO {
+        out.push_str(&format!("Returned — −{}\n", money_short(returned)));
+        out.push_str(&format!("*Now {}*\n", money_short(r.total - returned)));
+        refunded_line(&mut out);
+    }
+    let methods = label(payment_methods);
     if r.owed.is_zero() {
         out.push_str(&format!("Paid in full{methods}\n"));
     } else if r.paid.is_zero() {
@@ -81,7 +113,7 @@ pub fn wa_link(phone10: &str, text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::super::read::ReceiptLine;
+    use super::super::read::{ReceiptLine, ReturnedLine};
     use super::*;
     use chrono::{TimeZone, Utc};
     use std::str::FromStr;
@@ -132,7 +164,12 @@ mod tests {
             "1200",
             "800",
         );
-        let text = receipt_text(&r, "https://jehovah-jire.hnamtek.in/r/TOKEN", &["cash"]);
+        let text = receipt_text(
+            &r,
+            "https://jehovah-jire.hnamtek.in/r/TOKEN",
+            &["cash"],
+            &[],
+        );
         let want = "*Jehovah Jireh* — Receipt JJ/2026-27/000042\n\
                     6 Nov 2026\n\
                     \n\
@@ -154,14 +191,14 @@ mod tests {
             "100.50",
             "100.50",
         );
-        let t = receipt_text(&r, "u", &["cash", "UPI"]);
+        let t = receipt_text(&r, "u", &["cash", "UPI"], &[]);
         assert!(
             t.contains("1 × Plate — ₹100.50\n*Total ₹100.50*\nPaid in full (cash + UPI)\n"),
             "{t}"
         );
         assert!(!t.contains("Discount"));
         let r = receipt(vec![line("Plate", None, 1, "100")], "0", "100", "0");
-        let t = receipt_text(&r, "u", &[]);
+        let t = receipt_text(&r, "u", &[], &[]);
         assert!(t.contains("*Total ₹100*\n*Due ₹100*\n"), "{t}");
     }
 
@@ -170,10 +207,54 @@ mod tests {
         let lines = (0..17)
             .map(|i| line(&format!("Item {i}"), None, 1, "10"))
             .collect();
-        let t = receipt_text(&receipt(lines, "0", "170", "170"), "u", &["cash"]);
+        let t = receipt_text(&receipt(lines, "0", "170", "170"), "u", &["cash"], &[]);
         assert!(t.contains("1 × Item 14 — ₹10\n"));
         assert!(!t.contains("Item 15"));
         assert!(t.contains("+2 more items — see link\n"));
+    }
+
+    fn returned(amount: &str) -> Vec<ReturnedLine> {
+        vec![ReturnedLine {
+            name: "Plate".into(),
+            code: None,
+            quantity: 1,
+            amount: d(amount),
+        }]
+    }
+
+    #[test]
+    fn cancelled_receipt_text() {
+        let mut r = receipt(vec![line("Plate", None, 2, "200")], "0", "200", "0");
+        r.cancelled = true;
+        r.refunded = d("200");
+        let t = receipt_text(&r, "u", &["cash"], &["cash"]);
+        assert!(t.contains("*Cancelled*\n"), "{t}");
+        assert!(t.contains("*Total ₹200*\nRefunded ₹200 (cash)\n"), "{t}");
+        assert!(!t.contains("Paid in full"), "{t}");
+        assert!(!t.contains("Due"), "{t}");
+    }
+
+    #[test]
+    fn returned_and_refunded_receipt_text() {
+        let mut r = receipt(vec![line("Plate", None, 2, "200")], "0", "200", "100");
+        r.owed = d("0");
+        r.returned = returned("100");
+        r.refunded = d("100");
+        let t = receipt_text(&r, "u", &["cash"], &["cash"]);
+        assert!(
+            t.contains("*Total ₹200*\nReturned — −₹100\n*Now ₹100*\nRefunded ₹100 (cash)\nPaid in full (cash)\n"),
+            "{t}"
+        );
+    }
+
+    #[test]
+    fn returned_on_unpaid_receipt_text() {
+        let mut r = receipt(vec![line("Plate", None, 2, "200")], "0", "200", "0");
+        r.owed = d("100");
+        r.returned = returned("100");
+        let t = receipt_text(&r, "u", &[], &[]);
+        assert!(t.contains("*Now ₹100*\n*Due ₹100*\n"), "{t}");
+        assert!(!t.contains("Refunded"), "{t}");
     }
 
     #[test]

@@ -498,16 +498,21 @@ pub async fn order_detail(
                 &lines,
                 c.name.clone(),
                 m,
-                vec![],
+                returned_lines(conn, id).await?,
             );
-            let methods: Vec<&str> = [("cash", "cash"), ("upi", "UPI")]
-                .iter()
-                .filter(|(m, _)| payments.iter().any(|p| p.method == *m))
-                .map(|(_, label)| *label)
-                .collect();
+            let labels = |rows: &mut dyn Iterator<Item = &str>| -> Vec<&'static str> {
+                let seen: Vec<&str> = rows.collect();
+                [("cash", "cash"), ("upi", "UPI")]
+                    .iter()
+                    .filter(|(m, _)| seen.contains(m))
+                    .map(|(_, label)| *label)
+                    .collect()
+            };
+            let methods = labels(&mut payments.iter().map(|p| p.method.as_str()));
+            let refund_methods = labels(&mut refunds.iter().map(|r| r.method.as_str()));
             Some(wa_link(
                 &c.phone,
-                &receipt_text(&receipt, &receipt_url, &methods),
+                &receipt_text(&receipt, &receipt_url, &methods, &refund_methods),
             ))
         }
         None => None,

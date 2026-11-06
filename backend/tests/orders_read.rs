@@ -575,3 +575,45 @@ async fn public_receipt_lists_returned_items(pool: PgPool) {
     assert!(ret[0].get("code").is_some());
     assert!(!v.to_string().contains("cost"), "{v}");
 }
+
+#[sqlx::test]
+async fn later_customer_payment_counts_only_its_share(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let mk = |cust: Value| {
+        let mut b = json!({"lines": [{"product_id": sh.p[0], "quantity": 2}]});
+        b.as_object_mut()
+            .unwrap()
+            .extend(cust.as_object().unwrap().clone());
+        b
+    };
+    let a = checkout(
+        &sh,
+        mk(json!({"new_customer": {"phone": "9862012345", "name": "Mary"}})),
+    )
+    .await
+    .json();
+    let cid = a["customer"]["id"].as_str().unwrap().to_string();
+    let b = checkout(&sh, mk(json!({"customer_id": cid}))).await.json();
+    // 300 clears the older sale (200) and puts 100 on the newer one.
+    let r = post_as(
+        &sh,
+        &sh.cashier,
+        &format!("/api/v1/customers/{cid}/payments"),
+        json!({"method": "upi", "amount": "300"}),
+    )
+    .await;
+    assert_eq!(r.status(), 201, "{:?}", r.json());
+    let d = get(
+        &sh,
+        &sh.cashier,
+        &format!("/api/v1/orders/{}", b["id"].as_str().unwrap()),
+    )
+    .await
+    .json();
+    assert_eq!(d["paid"], "100.00");
+    assert_eq!(d["owed"], "100.00");
+    assert_eq!(
+        d["paid_by_method"],
+        json!({"cash": "0.00", "upi": "100.00"})
+    );
+}
