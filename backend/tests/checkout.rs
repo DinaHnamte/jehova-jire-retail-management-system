@@ -284,6 +284,9 @@ async fn insufficient_stock_writes_nothing(pool: PgPool) {
     let r = checkout(&sh.a, &sh.s, Some(&key()), cash_sale(&sh.p[0], 11, "1100")).await;
     assert_eq!(r.status(), 422);
     assert_eq!(r.json()["error"]["code"], "INSUFFICIENT_STOCK");
+    // The cart matches the error to its line by product id, never by the label text.
+    assert_eq!(r.json()["error"]["details"]["product_id"], sh.p[0]);
+    assert_eq!(r.json()["error"]["details"]["on_hand"], 10);
     assert_eq!(count(&pool, "SELECT count(*) FROM orders").await, 0);
     assert_eq!(count(&pool, "SELECT count(*) FROM order_lines").await, 0);
     assert_eq!(

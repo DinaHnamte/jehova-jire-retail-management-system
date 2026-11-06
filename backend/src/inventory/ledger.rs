@@ -114,7 +114,7 @@ pub async fn apply(
         } else {
             if *on_hand < m.quantity {
                 let label = product_label(conn, m.product_id).await?;
-                return Err(AppError::insufficient_stock(*on_hand, &label));
+                return Err(AppError::insufficient_stock(*on_hand, &label, m.product_id));
             }
             *on_hand -= m.quantity;
             -m.quantity

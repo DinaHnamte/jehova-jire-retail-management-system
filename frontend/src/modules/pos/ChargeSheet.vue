@@ -73,9 +73,6 @@ function handleError(e: unknown) {
     let line = details.product_id ? store.lines.find((l) => l.productId === details.product_id) : undefined
     const idx = fieldToLineIndex(details.field)
     if (!line && idx) line = store.lines[idx.index]
-    // INSUFFICIENT_STOCK names the product in its message ("Only 3 of B 6143-8 in stock...").
-    if (!line && e.code === 'INSUFFICIENT_STOCK')
-      line = store.lines.find((l) => (l.code && message.includes(l.code)) || message.includes(l.name))
     if (line) {
       dialog.value?.close()
       emit('lineError', line.productId, message)

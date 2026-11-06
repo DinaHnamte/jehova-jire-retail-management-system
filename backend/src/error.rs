@@ -4,6 +4,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde_json::json;
+use uuid::Uuid;
 
 use crate::http::request_id;
 
@@ -128,12 +129,13 @@ impl AppError {
     }
 
     /// 422: taking stock out would go below zero.
-    pub fn insufficient_stock(on_hand: i64, product: &str) -> Self {
+    /// `details.product_id` lets a client match the error to its line without parsing text.
+    pub fn insufficient_stock(on_hand: i64, product: &str, product_id: Uuid) -> Self {
         Self::Coded {
             status: StatusCode::UNPROCESSABLE_ENTITY,
             code: "INSUFFICIENT_STOCK",
             message: format!("Only {on_hand} of {product} in stock. Enter {on_hand} or less."),
-            details: json!({ "on_hand": on_hand }),
+            details: json!({ "on_hand": on_hand, "product_id": product_id }),
         }
     }
 
@@ -254,7 +256,8 @@ mod tests {
 
     #[tokio::test]
     async fn coded_error_renders_status_code_and_details() {
-        let e = AppError::insufficient_stock(3, "B 6143-8");
+        let id = Uuid::nil();
+        let e = AppError::insufficient_stock(3, "B 6143-8", id);
         assert_eq!(e.status(), StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(e.code(), "INSUFFICIENT_STOCK");
         let res = e.into_response();
@@ -265,6 +268,7 @@ mod tests {
         let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(v["error"]["code"], "INSUFFICIENT_STOCK");
         assert_eq!(v["error"]["details"]["on_hand"], 3);
+        assert_eq!(v["error"]["details"]["product_id"], id.to_string());
         assert_eq!(
             v["error"]["message"],
             "Only 3 of B 6143-8 in stock. Enter 3 or less."
