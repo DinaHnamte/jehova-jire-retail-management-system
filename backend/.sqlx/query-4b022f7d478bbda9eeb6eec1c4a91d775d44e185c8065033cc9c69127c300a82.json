@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.display_name AS driver_name, a.reason, a.note, a.trip_pay, a.occurred_at\n           FROM delivery_attempts a JOIN users u ON u.id = a.driver_id\n           WHERE a.delivery_id = $1\n           ORDER BY a.occurred_at, a.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "driver_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "delivery_attempts",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "note",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "delivery_attempts",
+            "name": "note"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "trip_pay",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "delivery_attempts",
+            "name": "trip_pay"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "occurred_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "delivery_attempts",
+            "name": "occurred_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "4b022f7d478bbda9eeb6eec1c4a91d775d44e185c8065033cc9c69127c300a82"
+}

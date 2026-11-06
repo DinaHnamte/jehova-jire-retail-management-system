@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE delivery_assignments SET ended_at = now(), end_reason = $2\n         WHERE delivery_id = $1 AND ended_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3de33afa661dc3ebafb616efddf301cb5cf8341a408d44944d186fa49056e621"
+}

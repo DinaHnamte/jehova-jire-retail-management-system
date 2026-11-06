@@ -158,6 +158,19 @@ pub fn status_label(s: Status) -> &'static str {
     }
 }
 
+/// How the current status reads after "This delivery is …" in an error message.
+pub fn status_phrase(s: Status) -> &'static str {
+    match s {
+        Status::ToSend => "not sent yet",
+        Status::Assigned => "assigned to a driver",
+        Status::PickedUp => "out for delivery",
+        Status::Delivered => "already delivered",
+        Status::Failed => "marked couldn't deliver",
+        Status::Returned => "returned to the shop",
+        Status::Cancelled => "cancelled",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

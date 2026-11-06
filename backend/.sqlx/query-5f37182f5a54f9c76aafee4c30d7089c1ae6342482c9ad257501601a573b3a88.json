@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE deliveries\n         SET status = 'assigned', current_driver_id = $2, assigned_at = now(), driver_pay = $3,\n             updated_at = now()\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Numeric"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5f37182f5a54f9c76aafee4c30d7089c1ae6342482c9ad257501601a573b3a88"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE delivery_attempts SET trip_pay = $2\n         WHERE id = (SELECT id FROM delivery_attempts WHERE delivery_id = $1\n                     ORDER BY occurred_at DESC, id DESC LIMIT 1)\n           AND trip_pay IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Numeric"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "221afe2838ec4002b3ab93c93f3b161aec37d8b68265ab0bbebc34b014eba393"
+}

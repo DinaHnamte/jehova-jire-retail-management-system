@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) FILTER (WHERE status = 'to_send') AS \"to_send!\",\n                  count(*) FILTER (WHERE status IN ('assigned', 'picked_up')) AS \"out!\",\n                  count(*) FILTER (WHERE status = 'failed') AS \"failed!\"\n           FROM deliveries",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "to_send!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "out!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "failed!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "c592278ac53ff5f5cf971009877c2c1c2afe68edc690cf797fda349fab0feca9"
+}

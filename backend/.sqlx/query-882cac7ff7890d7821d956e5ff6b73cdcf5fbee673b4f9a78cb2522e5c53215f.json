@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO delivery_assignments (id, delivery_id, driver_id, assigned_by)\n         VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "882cac7ff7890d7821d956e5ff6b73cdcf5fbee673b4f9a78cb2522e5c53215f"
+}

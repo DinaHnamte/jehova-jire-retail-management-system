@@ -1,8 +1,14 @@
 //! Deliveries: an order sent to a customer's address, with a fee and a driver (Phase 6a).
+pub mod actions;
 pub mod domain;
 pub mod input;
+pub mod messages;
+pub mod read;
 
-use axum::Router;
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use serde_json::json;
 use sqlx::PgConnection;
 use uuid::Uuid;
@@ -54,7 +60,14 @@ pub async fn create_for_order(
     Ok(id)
 }
 
-/// Later tasks add the delivery routes here.
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/deliveries", get(read::list_route))
+        .route(
+            "/deliveries/{id}",
+            get(read::get_route).patch(actions::edit_route),
+        )
+        .route("/deliveries/{id}/assign", post(actions::assign_route))
+        .route("/deliveries/{id}/status", post(actions::status_route))
+        .route("/deliveries/{id}/retry", post(actions::retry_route))
 }

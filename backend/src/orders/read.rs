@@ -382,7 +382,7 @@ async fn refund_rows(conn: &mut PgConnection, order_id: Uuid) -> AppResult<Vec<R
 
 /// Money in minus money out, per method: payments credited to this order less cash or UPI
 /// handed back in its refunds. Returns (cash, upi, refunded).
-async fn paid_by_method(
+pub(crate) async fn paid_by_method(
     conn: &mut PgConnection,
     order_id: Uuid,
 ) -> AppResult<(Decimal, Decimal, Decimal)> {

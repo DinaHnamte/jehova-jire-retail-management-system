@@ -98,8 +98,8 @@ pub fn reminder_text(shop: &str, name: Option<&str>, owes: Decimal, numbers: &[S
     )
 }
 
-/// `https://wa.me/91<phone>?text=<percent-encoded text>`.
-pub fn wa_link(phone10: &str, text: &str) -> String {
+/// Percent-encodes everything but the URL-unreserved characters, for a query value.
+pub fn url_encode(text: &str) -> String {
     let mut enc = String::with_capacity(text.len() * 2);
     for b in text.bytes() {
         if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
@@ -108,7 +108,12 @@ pub fn wa_link(phone10: &str, text: &str) -> String {
             enc.push_str(&format!("%{b:02X}"));
         }
     }
-    format!("https://wa.me/91{phone10}?text={enc}")
+    enc
+}
+
+/// `https://wa.me/91<phone>?text=<percent-encoded text>`.
+pub fn wa_link(phone10: &str, text: &str) -> String {
+    format!("https://wa.me/91{phone10}?text={}", url_encode(text))
 }
 
 #[cfg(test)]

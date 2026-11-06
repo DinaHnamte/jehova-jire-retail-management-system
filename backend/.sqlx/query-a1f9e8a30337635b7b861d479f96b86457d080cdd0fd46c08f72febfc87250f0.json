@@ -1,0 +1,323 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.id, d.order_id, d.status, d.recipient_name, d.recipient_phone, d.address_line,\n                  d.locality, d.landmark, d.instructions, d.fee, d.driver_pay, d.collector,\n                  d.pay_method, d.received_by, d.created_at, d.assigned_at, d.picked_up_at,\n                  d.delivered_at, d.closed_at, d.updated_at, d.current_driver_id,\n                  o.number, (o.total - o.delivery_fee + d.fee) AS \"total!\",\n                  u.display_name AS \"driver_name?\", u.is_active AS \"driver_active?\",\n                  p.phone AS \"driver_phone?\"\n           FROM deliveries d\n           JOIN orders o ON o.id = d.order_id\n           LEFT JOIN users u ON u.id = d.current_driver_id\n           LEFT JOIN driver_profiles p ON p.user_id = d.current_driver_id\n           WHERE d.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "order_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "recipient_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "recipient_name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "recipient_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "recipient_phone"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "address_line",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "address_line"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "locality",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "locality"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "landmark",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "landmark"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "instructions",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "instructions"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "fee",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "fee"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "driver_pay",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "driver_pay"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "collector",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "collector"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "pay_method",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "pay_method"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "received_by",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "received_by"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "assigned_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "assigned_at"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "picked_up_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "picked_up_at"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "delivered_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "delivered_at"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "closed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "closed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "updated_at"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "current_driver_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "current_driver_id"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "number",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "orders",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "total!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 23,
+        "name": "driver_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "ordinal": 24,
+        "name": "driver_active?",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "is_active"
+          }
+        }
+      },
+      {
+        "ordinal": 25,
+        "name": "driver_phone?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "driver_profiles",
+            "name": "phone"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      null,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "a1f9e8a30337635b7b861d479f96b86457d080cdd0fd46c08f72febfc87250f0"
+}

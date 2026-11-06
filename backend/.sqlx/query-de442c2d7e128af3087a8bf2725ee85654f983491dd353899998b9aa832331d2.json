@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE deliveries\n         SET recipient_name = $2, recipient_phone = $3, address_line = $4, locality = $5,\n             landmark = $6, instructions = $7, fee = $8, driver_pay = $9, collector = $10,\n             pay_method = $11, updated_at = now()\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Numeric",
+        "Numeric",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "de442c2d7e128af3087a8bf2725ee85654f983491dd353899998b9aa832331d2"
+}

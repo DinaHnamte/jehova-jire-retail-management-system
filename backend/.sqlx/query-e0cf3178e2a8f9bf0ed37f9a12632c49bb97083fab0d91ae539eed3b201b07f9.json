@@ -1,0 +1,170 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.id, d.order_id, o.number AS order_number, d.status, d.recipient_name,\n                  d.locality, d.collector, d.fee, d.current_driver_id,\n                  u.display_name AS \"driver_name?\", u.is_active AS \"driver_active?\",\n                  r.owed AS \"owed!\", s.since AS \"since!\",\n                  (SELECT a.reason FROM delivery_attempts a WHERE a.delivery_id = d.id\n                    ORDER BY a.occurred_at DESC, a.id DESC LIMIT 1) AS fail_reason\n           FROM deliveries d\n           JOIN orders o ON o.id = d.order_id\n           LEFT JOIN users u ON u.id = d.current_driver_id\n           CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e\n                               WHERE e.account = 'receivable' AND e.ref_id = d.order_id) r\n           CROSS JOIN LATERAL (SELECT COALESCE(MAX(ev.occurred_at), d.created_at) AS since\n                               FROM delivery_events ev\n                               WHERE ev.delivery_id = d.id AND ev.kind = 'status') s\n           WHERE d.status = ANY($1)\n             AND (NOT $2 OR COALESCE(d.closed_at, d.delivered_at) >= now() - interval '7 days')\n           ORDER BY CASE WHEN $2 THEN s.since END DESC, s.since ASC, d.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "order_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "order_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "order_number",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "orders",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "recipient_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "recipient_name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "locality",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "locality"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "collector",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "collector"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "fee",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "fee"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "current_driver_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "current_driver_id"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "driver_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "driver_active?",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "is_active"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "owed!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 12,
+        "name": "since!",
+        "type_info": "Timestamptz",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 13,
+        "name": "fail_reason",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "e0cf3178e2a8f9bf0ed37f9a12632c49bb97083fab0d91ae539eed3b201b07f9"
+}

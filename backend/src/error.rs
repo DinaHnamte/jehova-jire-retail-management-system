@@ -6,7 +6,7 @@ use axum::{
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::deliveries::domain::{Status, status_label};
+use crate::deliveries::domain::{Status, status_phrase};
 use crate::http::request_id;
 
 /// Every API error. Rendered as `{ "error": { code, message, details, request_id } }`.
@@ -160,7 +160,7 @@ impl AppError {
             code: "DELIVERY_STATUS",
             message: format!(
                 "This delivery is {}. That step isn't possible now.",
-                status_label(current).to_lowercase()
+                status_phrase(current)
             ),
             details: json!({ "status": current.as_str() }),
         }
@@ -328,12 +328,22 @@ mod tests {
         );
     }
 
-    #[test]
-    fn delivery_errors() {
+    #[tokio::test]
+    async fn delivery_errors() {
         let e = AppError::delivery_status(Status::PickedUp);
         assert_eq!(
             (e.status(), e.code()),
             (StatusCode::CONFLICT, "DELIVERY_STATUS")
+        );
+        let res = AppError::delivery_status(Status::ToSend).into_response();
+        let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["error"]["details"]["status"], "to_send");
+        assert_eq!(
+            v["error"]["message"],
+            "This delivery is not sent yet. That step isn't possible now."
         );
         assert_eq!(AppError::delivery_out().code(), "DELIVERY_OUT");
         assert_eq!(AppError::delivery_not_done().code(), "DELIVERY_NOT_DONE");

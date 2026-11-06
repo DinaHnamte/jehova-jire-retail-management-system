@@ -1,0 +1,172 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, status, recipient_name, recipient_phone, address_line, locality, landmark,\n                instructions, fee, driver_pay, collector, pay_method, current_driver_id\n         FROM deliveries WHERE id = $1 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "recipient_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "recipient_name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "recipient_phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "recipient_phone"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "address_line",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "address_line"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "locality",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "locality"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "landmark",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "landmark"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "instructions",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "instructions"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "fee",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "fee"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "driver_pay",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "driver_pay"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "collector",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "collector"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "pay_method",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "pay_method"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "current_driver_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "deliveries",
+            "name": "current_driver_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "f26498b607c12f227db170edd41095486479dc96f82af6e84e23d043f227b6eb"
+}
