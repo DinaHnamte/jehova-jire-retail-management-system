@@ -150,8 +150,15 @@ pub async fn list(db: &PgPool) -> AppResult<Vec<DriverOut>> {
 
 pub async fn create(db: &PgPool, actor: Uuid, req: CreateDriver) -> AppResult<DriverOut> {
     let display_name = clean_name(&req.display_name)?;
-    if req.username.trim().is_empty() {
+    let username = req.username.trim();
+    if username.is_empty() {
         return Err(field("username", "Enter a username."));
+    }
+    if username.chars().count() > 64 {
+        return Err(field(
+            "username",
+            "Keep the username to 64 characters or fewer.",
+        ));
     }
     let phone = clean_phone(&req.phone)?;
     let pay = clean_pay(&req.default_pay)?;

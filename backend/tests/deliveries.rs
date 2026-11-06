@@ -457,6 +457,10 @@ async fn failed_needs_reason_and_other_needs_note(pool: PgPool) {
     let long = "x".repeat(81);
     let r = status(&sh, &did, json!({"to": "delivered", "received_by": long})).await;
     assert_eq!((r.status(), field(&r).as_str()), (422, "received_by"));
+    assert_eq!(
+        r.json()["error"]["message"],
+        "Keep this to 80 characters or fewer."
+    );
     assert_eq!(detail(&sh, &did).await["status"], "picked_up");
 
     let v = ok(status(
@@ -1083,4 +1087,22 @@ async fn failed_and_done_items_show_last_driver(pool: PgPool) {
     let o = sale(&sh, 1, "50", "0", None, Some(&cid)).await;
     delivery_of(&pool, &o).await;
     assert_eq!(tab(&sh, "to_send").await["items"][0]["driver"], Value::Null);
+}
+
+#[sqlx::test]
+async fn list_says_who_collects_and_what_is_owed(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = sale(&sh, 1, "50", "0", None, None).await;
+    let did = delivery_of(&pool, &o).await;
+    let it = tab(&sh, "to_send").await["items"][0].clone();
+    assert_eq!(it["collector"], "driver");
+    assert_eq!(it["owed"], "150.00");
+    assert_eq!(it["amount_to_collect"], "150.00");
+
+    // The shop collects: nothing for the driver, but the money is still owed.
+    ok(edit(&sh, &did, Some(&key()), json!({"collector": "shop"})).await).await;
+    let it = tab(&sh, "to_send").await["items"][0].clone();
+    assert_eq!(it["collector"], "shop");
+    assert_eq!(it["owed"], "150.00");
+    assert_eq!(it["amount_to_collect"], "0.00");
 }

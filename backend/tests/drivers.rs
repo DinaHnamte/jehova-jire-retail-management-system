@@ -244,3 +244,23 @@ async fn active_driver_rejects_inactive_and_non_drivers(pool: PgPool) {
             .is_err()
     );
 }
+
+#[sqlx::test]
+async fn driver_username_over_64_is_422(pool: PgPool) {
+    let (a, s) = owner(&pool).await;
+    let r = add(&a, &s, body(&"u".repeat(65), "9862000000")).await;
+    assert_eq!(r.status(), 422, "{:?}", r.json());
+    assert_eq!(r.json()["error"]["details"]["field"], "username");
+    assert_eq!(
+        r.json()["error"]["message"],
+        "Keep the username to 64 characters or fewer."
+    );
+    // 64 characters, padded with spaces, is fine.
+    let r = add(
+        &a,
+        &s,
+        body(&format!("  {}  ", "u".repeat(64)), "9862000000"),
+    )
+    .await;
+    assert_eq!(r.status(), 201, "{:?}", r.json());
+}

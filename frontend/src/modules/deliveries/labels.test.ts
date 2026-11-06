@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { actionsFor, ageLabel, reasonLabel, reasons, saleCancelNote, statusLabel } from './labels'
+import { actionsFor, ageLabel, moneyLabel, reasonLabel, reasons, saleCancelNote, statusLabel } from './labels'
 
 describe('statusLabel', () => {
   it('labels every status', () => {
@@ -65,5 +65,18 @@ describe('saleCancelNote', () => {
     expect(saleCancelNote('delivered')).toBe('This delivery is done. Return items instead.')
     expect(saleCancelNote('returned')).toBeNull()
     expect(saleCancelNote('assigned')).toBeNull()
+  })
+})
+
+describe('moneyLabel', () => {
+  it('says the driver collects what is owed', () => {
+    expect(moneyLabel({ collector: 'driver', owed: '150.00' })).toBe('Collect ₹150.00')
+  })
+  it('says the shop collects when money is still owed', () => {
+    expect(moneyLabel({ collector: 'shop', owed: '150.00' })).toBe('Shop collects ₹150.00')
+  })
+  it('says paid only when nothing is owed', () => {
+    expect(moneyLabel({ collector: 'driver', owed: '0.00' })).toBe('Paid')
+    expect(moneyLabel({ collector: 'shop', owed: '0.00' })).toBe('Paid')
   })
 })

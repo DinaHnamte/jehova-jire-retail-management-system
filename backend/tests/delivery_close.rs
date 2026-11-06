@@ -761,3 +761,73 @@ async fn order_cancel_on_failed_or_delivered_delivery_says_what_to_do(pool: PgPo
     );
     assert_eq!(r.json()["error"]["details"]["status"], "delivered");
 }
+
+/// A free Plate delivered for free: no sale transaction is written at checkout.
+async fn free_sale(sh: &Shop) -> Value {
+    sell(
+        sh,
+        json!({
+            "lines": [{"product_id": sh.p, "quantity": 1, "unit_price": "0"}],
+            "new_customer": {"phone": "9862012345", "name": "Mary"},
+            "delivery": {
+                "recipient_name": "Lalthangi", "recipient_phone": "9862000000",
+                "address_line": "House 12, Chanmari West", "locality": "Chanmari",
+                "fee": "0"
+            }
+        }),
+    )
+    .await
+}
+
+#[sqlx::test]
+async fn cancel_free_order_after_fee_raised(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = free_sale(&sh).await;
+    let did = delivery_of(&pool, &o).await;
+    assert_eq!(
+        count(
+            &pool,
+            "SELECT count(*) FROM ledger_transactions WHERE kind = 'sale'"
+        )
+        .await,
+        0
+    );
+    set_fee(&sh, &did, "30").await;
+    assert_eq!(order_owed(&pool, &o).await, Decimal::from(30));
+    let r = cancel(&sh, &did, &key(), json!({})).await;
+    assert_eq!(r.status(), 200, "{:?}", r.json());
+    assert_eq!(delivery_status(&pool, &did).await, "cancelled");
+    assert_eq!(order_owed(&pool, &o).await, Decimal::ZERO);
+    assert_eq!(
+        account_total(&pool, "delivery_fee_income").await,
+        Decimal::ZERO
+    );
+    ledger_is_sound(&pool).await;
+    stock_is_sound(&pool).await;
+}
+
+#[sqlx::test]
+async fn check_in_free_order_after_fee_raised(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = free_sale(&sh).await;
+    let did = delivery_of(&pool, &o).await;
+    set_fee(&sh, &did, "30").await;
+    fail(&sh, &did).await;
+    let lines = line_ids(&pool, &o).await;
+    let r = check_in(
+        &sh,
+        &did,
+        &key(),
+        json!({"lines": [{"order_line_id": lines[0], "disposition": "sellable"}]}),
+    )
+    .await;
+    assert_eq!(r.status(), 200, "{:?}", r.json());
+    assert_eq!(r.json()["status"], "returned");
+    assert_eq!(order_owed(&pool, &o).await, Decimal::ZERO);
+    assert_eq!(
+        account_total(&pool, "delivery_fee_income").await,
+        Decimal::ZERO
+    );
+    ledger_is_sound(&pool).await;
+    stock_is_sound(&pool).await;
+}

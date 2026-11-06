@@ -160,13 +160,14 @@ pub async fn cancel_core(
     // Money: reverse the sale as it stands now (fee edits included), then hand back what was
     // paid, one refund per method.
     if !order.current_total.is_zero() {
+        // An order that came to ₹0 at checkout has no sale transaction; its total is not 0 now
+        // only because the fee was raised since, so there is nothing to point the cancel at.
         let sale_id = sqlx::query_scalar!(
             "SELECT id FROM ledger_transactions WHERE order_id = $1 AND kind = 'sale'",
             order_id
         )
         .fetch_optional(&mut *tx)
-        .await?
-        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("order {order_id} has no sale")))?;
+        .await?;
         let entries = [
             (Account::SalesRevenue, order.goods_total),
             (Account::DeliveryFeeIncome, order.fee),
@@ -185,7 +186,7 @@ pub async fn cancel_core(
                 actor,
                 idempotency_key: format!("order:{order_id}:cancel"),
                 note: None,
-                reverses_id: Some(sale_id),
+                reverses_id: sale_id,
                 entries,
             },
         )

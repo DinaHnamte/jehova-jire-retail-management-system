@@ -29,7 +29,10 @@ pub struct ActiveItem {
     pub status: String,
     pub locality: String,
     pub recipient_name: String,
+    /// 0.00 when the shop collects; the driver is not told what the customer owes the shop.
     pub amount_to_collect: String,
+    /// Who collects the money: `driver` or `shop`.
+    pub collector: String,
 }
 
 /// A finished job: no address, phone or items.
@@ -103,6 +106,7 @@ pub async fn my_jobs(conn: &mut PgConnection, me: Uuid) -> AppResult<MyJobs> {
         .into_iter()
         .map(|r| ActiveItem {
             amount_to_collect: money(to_collect(&r.collector, r.owed)),
+            collector: r.collector,
             id: r.id,
             order_number: r.order_number,
             status: r.status,

@@ -1,4 +1,5 @@
 // Copy for delivery statuses and failure reasons (Phase 6a Global Constraints).
+import { formatRupees, toPaise } from '@/shared/money'
 
 export type DeliveryStatus = 'to_send' | 'assigned' | 'picked_up' | 'delivered' | 'failed' | 'returned' | 'cancelled'
 export type FailReason = 'customer_unavailable' | 'address_not_found' | 'customer_refused' | 'unreachable_by_phone' | 'other'
@@ -73,4 +74,10 @@ export function saleCancelNote(status: string): string | null {
     default:
       return null
   }
+}
+
+/** The owner's money line for a delivery: who collects what is still owed, or "Paid". */
+export function moneyLabel(d: { collector: 'shop' | 'driver'; owed: string }): string {
+  if (toPaise(d.owed) <= 0n) return 'Paid'
+  return d.collector === 'shop' ? `Shop collects ${formatRupees(d.owed)}` : `Collect ${formatRupees(d.owed)}`
 }

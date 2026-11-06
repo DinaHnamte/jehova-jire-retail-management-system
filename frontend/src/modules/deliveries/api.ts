@@ -22,7 +22,11 @@ export interface DeliveryListItem {
   locality: string
   /** The current driver, else the last one assigned; null when never assigned. */
   driver: DriverBrief | null
+  /** What the driver collects at the door: 0.00 when the shop collects. */
   amount_to_collect: string
+  collector: Collector
+  /** What the customer still owes on the order, whoever collects it. */
+  owed: string
   fee: string
   /** When the status last changed. */
   since: string
@@ -173,7 +177,9 @@ export interface DriverActiveItem {
   status: DeliveryStatus
   locality: string
   recipient_name: string
+  /** 0.00 when the shop collects. */
   amount_to_collect: string
+  collector: Collector
 }
 
 /** A finished job: no address, phone or items. */

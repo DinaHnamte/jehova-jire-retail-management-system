@@ -305,3 +305,38 @@ async fn staff_endpoints_forbidden_for_driver(pool: PgPool) {
             .await;
     assert_eq!(r.status(), 403);
 }
+
+#[sqlx::test]
+async fn active_item_says_who_collects(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let (a, sa) = new_driver(&sh, "asha", "9862000001").await;
+    let jd = job(&sh, &pool, "30", "0").await;
+    let js = job(&sh, &pool, "30", "0").await;
+    let r =
+        sh.a.send(
+            axum::http::Request::patch(format!("/api/v1/deliveries/{js}"))
+                .header("content-type", "application/json")
+                .header("cookie", &sh.m.cookie)
+                .header("x-csrf-token", &sh.m.csrf)
+                .header("idempotency-key", key())
+                .body(axum::body::Body::from(
+                    json!({"collector": "shop"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(r.status(), 200, "{:?}", r.json());
+    assign(&sh, &jd, &a).await;
+    assign(&sh, &js, &a).await;
+    let v = mine(&sh, &sa).await;
+    let active = v["active"].as_array().unwrap();
+    let find = |id: &str| active.iter().find(|j| j["id"] == id).unwrap().clone();
+    let d = find(&jd);
+    assert_eq!(d["collector"], "driver");
+    assert_eq!(d["amount_to_collect"], "130.00");
+    let s = find(&js);
+    assert_eq!(s["collector"], "shop");
+    assert_eq!(s["amount_to_collect"], "0.00");
+    // The driver is not told what the customer owes the shop.
+    assert!(s.get("owed").is_none());
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectLine, deliveryBody, draftErrors, draftFromLastAddress, emptyDraft, totalWithFee } from './delivery'
+import { collectLine, deliveryBody, draftErrors, draftFromLastAddress, emptyDraft, prefillValues, totalWithFee } from './delivery'
 
 const full = () => ({
   ...emptyDraft(),
@@ -73,6 +73,56 @@ describe('draftFromLastAddress', () => {
     const d = draftFromLastAddress(null, { name: 'Cust', phone: '9111111111' }, emptyDraft())
     expect(d.recipientName).toBe('Cust')
     expect(d.recipientPhone).toBe('9111111111')
+  })
+
+  describe('switching customer', () => {
+    const custA = { name: 'Asha', phone: '9000000001' }
+    const addrA = { recipient_name: 'Asha', recipient_phone: '9000000001', address_line: 'A street', locality: 'Zarkawt', landmark: 'Big tree', instructions: 'Ring twice' }
+    const custB = { name: 'Bina', phone: '9000000002' }
+    const addrB = { recipient_name: 'Bina', recipient_phone: '9000000002', address_line: 'B road', locality: 'Chanmari', landmark: null, instructions: null }
+    const afterA = () => {
+      const draft = draftFromLastAddress(addrA, custA, { ...emptyDraft(), fee: '50' })
+      return { draft, prefill: prefillValues(addrA, custA) }
+    }
+
+    it("replaces A's address with B's", () => {
+      const a = afterA()
+      const d = draftFromLastAddress(addrB, custB, a.draft, a.prefill)
+      expect(d).toMatchObject({
+        recipientName: 'Bina',
+        recipientPhone: '9000000002',
+        addressLine: 'B road',
+        locality: 'Chanmari',
+        landmark: '',
+        instructions: '',
+        fee: '50',
+      })
+    })
+
+    it('keeps a field the owner typed over', () => {
+      const a = afterA()
+      const typed = { ...a.draft, instructions: 'Leave at the gate', addressLine: 'Typed street' }
+      const d = draftFromLastAddress(addrB, custB, typed, a.prefill)
+      expect(d.instructions).toBe('Leave at the gate')
+      expect(d.addressLine).toBe('Typed street')
+      expect(d.locality).toBe('Chanmari')
+      expect(d.recipientName).toBe('Bina')
+    })
+
+    it("clears A's address for a customer with no last address, keeping typed fields", () => {
+      const a = afterA()
+      const typed = { ...a.draft, landmark: 'Blue gate' }
+      const d = draftFromLastAddress(null, custB, typed, a.prefill)
+      expect(d).toMatchObject({
+        recipientName: 'Bina',
+        recipientPhone: '9000000002',
+        addressLine: '',
+        locality: '',
+        landmark: 'Blue gate',
+        instructions: '',
+        fee: '50',
+      })
+    })
   })
 })
 

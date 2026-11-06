@@ -341,8 +341,14 @@ pub fn validate_status(raw: &StatusRequest) -> AppResult<StatusChange> {
         "picked_up" => Ok(StatusChange::PickedUp),
         "delivered" => {
             let received_by = trimmed(&raw.received_by)
-                .filter(|s| s.chars().count() <= 80)
                 .ok_or_else(|| bad(p, "received_by", "Write who received it."))?;
+            if received_by.chars().count() > 80 {
+                return Err(bad(
+                    p,
+                    "received_by",
+                    "Keep this to 80 characters or fewer.",
+                ));
+            }
             Ok(StatusChange::Delivered { received_by })
         }
         "failed" => {

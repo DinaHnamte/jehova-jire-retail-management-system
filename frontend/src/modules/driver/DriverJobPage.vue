@@ -5,8 +5,7 @@ import { ApiError } from '@/shared/api/errors'
 import { isActiveJob, myJob, setMyStatus, type JobDetail, type MyJob, type StatusBody } from '@/modules/deliveries/api'
 import { friendlyMessage } from '@/modules/deliveries/errors'
 import { reasonLabel, reasons, statusLabel, type FailReason } from '@/modules/deliveries/labels'
-import { formatRupees } from '@/shared/money'
-import { canFail, primaryAction, statusConflictIsDone } from './actions'
+import { canFail, collectLabel, primaryAction, statusConflictIsDone } from './actions'
 
 const route = useRoute()
 const router = useRouter()
@@ -24,7 +23,6 @@ const formError = ref<string | null>(null)
 let backTimer: ReturnType<typeof setTimeout> | undefined
 
 const detail = computed<JobDetail | null>(() => (job.value && isActiveJob(job.value) ? job.value : null))
-const collect = computed(() => (detail.value && Number(detail.value.amount_to_collect) > 0 ? detail.value.amount_to_collect : null))
 const next = computed(() => (detail.value ? primaryAction(detail.value.status) : null))
 const mayFail = computed(() => (detail.value ? canFail(detail.value.status) : false))
 const tel = computed(() => (detail.value ? `tel:${detail.value.recipient_phone.replace(/[^\d+]/g, '')}` : ''))
@@ -144,7 +142,7 @@ function confirmFailed() {
       </section>
 
       <p class="figure rounded-card bg-golden-tint p-4 text-2xl text-golden-ink">
-        {{ collect ? `Collect ${formatRupees(collect)}` : 'Already paid' }}
+        {{ collectLabel(detail) }}
       </p>
 
       <template v-if="mode === 'delivered'">

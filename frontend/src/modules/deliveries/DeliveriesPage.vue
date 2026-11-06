@@ -2,10 +2,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { friendlyMessage } from '@/shared/api/errors'
-import { formatRupees, toPaise } from '@/shared/money'
 import Badge from '@/shared/ui/Badge.vue'
 import { listDeliveries, type DeliveryList, type DeliveryTab } from './api'
-import { ageLabel, reasonLabel, statusLabel } from './labels'
+import { ageLabel, moneyLabel, reasonLabel, statusLabel } from './labels'
 
 const tabs: { id: DeliveryTab; label: string }[] = [
   { id: 'to_send', label: 'To send' },
@@ -44,7 +43,6 @@ function pick(t: DeliveryTab) {
   void router.replace({ query: { ...route.query, tab: t } })
 }
 const count = (t: DeliveryTab) => (t === 'done' ? null : data.value?.counts[t])
-const collects = (a: string) => toPaise(a) > 0n
 </script>
 
 <template>
@@ -83,7 +81,7 @@ const collects = (a: string) => toPaise(a) > 0n
         </p>
       </div>
       <div class="text-right">
-        <p class="figure text-lg">{{ collects(d.amount_to_collect) ? formatRupees(d.amount_to_collect) : 'Paid' }}</p>
+        <p class="figure text-lg">{{ moneyLabel(d) }}</p>
         <p class="text-sm text-muted">{{ ageLabel(d.since) }}</p>
       </div>
     </li>

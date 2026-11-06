@@ -4,7 +4,7 @@ import type { CheckoutBody, CheckoutPayment, Customer } from './api'
 import { parseMoneyInput } from '@/shared/money'
 import { nextKey, type IssuedKey } from '@/shared/idempotency'
 import { cartProblems, cartTotals, type CartLine } from './cart'
-import { deliveryBody, emptyDraft, totalWithFee, type DeliveryDraft } from './delivery'
+import { deliveryBody, emptyDraft, loadPrefill, totalWithFee, type AddressFields, type DeliveryDraft } from './delivery'
 
 const STORAGE_KEY = 'jj.cart.v1'
 
@@ -21,6 +21,8 @@ interface Persisted {
   key: IssuedKey | null
   fulfilment: 'counter' | 'delivery'
   delivery: DeliveryDraft
+  /** What the last address prefill put in the draft, so a customer switch can tell it from typing. */
+  deliveryPrefill: AddressFields | null
 }
 
 const MAX_QTY = 1_000_000
@@ -112,6 +114,7 @@ export const useCartStore = defineStore('cart', {
       key: d.key ?? null,
       fulfilment: d.fulfilment === 'delivery' ? 'delivery' : 'counter',
       delivery: loadDraft(d.delivery),
+      deliveryPrefill: loadPrefill(d.deliveryPrefill),
     }
   },
   getters: {
@@ -158,6 +161,7 @@ export const useCartStore = defineStore('cart', {
         key: this.key,
         fulfilment: this.fulfilment,
         delivery: this.delivery,
+        deliveryPrefill: this.deliveryPrefill,
       })
     },
     /** Add one of a search hit; a product already in the cart gets +1. */
@@ -219,6 +223,12 @@ export const useCartStore = defineStore('cart', {
       this.delivery = d
       this.persist()
     },
+    /** The draft after an address prefill, and what that prefill put in. */
+    setPrefilledDelivery(d: DeliveryDraft, prefill: AddressFields) {
+      this.delivery = d
+      this.deliveryPrefill = prefill
+      this.persist()
+    },
     remove(productId: string) {
       this.lines = this.lines.filter((l) => l.productId !== productId)
       this.persist()
@@ -230,6 +240,7 @@ export const useCartStore = defineStore('cart', {
       this.newCustomer = null
       this.fulfilment = 'counter'
       this.delivery = emptyDraft()
+      this.deliveryPrefill = null
       this.key = null
       this.persist()
     },

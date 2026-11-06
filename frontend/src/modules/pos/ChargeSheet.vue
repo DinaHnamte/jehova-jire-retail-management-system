@@ -7,7 +7,7 @@ import { checkout, lastAddress, type CheckoutPayment, type OrderDetail } from '.
 import { useCartStore } from './cart.store'
 import CustomerPicker from './CustomerPicker.vue'
 import DeliveryFields from './DeliveryFields.vue'
-import { collectLine, draftErrors, draftFromLastAddress } from './delivery'
+import { collectLine, draftErrors, draftFromLastAddress, prefillValues } from './delivery'
 
 const emit = defineEmits<{
   done: [order: OrderDetail]
@@ -44,7 +44,10 @@ function setMode(mode: 'counter' | 'delivery') {
   if (mode === 'delivery') prefill()
 }
 
-/** Fills only the empty delivery fields: from the last delivery of a saved customer, else the customer itself. */
+/**
+ * Fills the address from the last delivery of a saved customer, else the customer itself: empty
+ * fields, and fields still holding the previous customer's prefill. What the owner typed stays.
+ */
 async function prefill() {
   const c = store.customer
   const who = c ?? store.newCustomer
@@ -59,7 +62,7 @@ async function prefill() {
     }
   }
   if (store.customer !== c) return
-  store.setDelivery(draftFromLastAddress(addr, base, store.delivery))
+  store.setPrefilledDelivery(draftFromLastAddress(addr, base, store.delivery, store.deliveryPrefill), prefillValues(addr, base))
 }
 watch(() => [store.customer?.id, store.newCustomer?.phone], () => {
   if (isDelivery.value && dialog.value?.open) prefill()

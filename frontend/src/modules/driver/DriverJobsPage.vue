@@ -4,6 +4,7 @@ import { myJobs, type MyJobs } from '@/modules/deliveries/api'
 import { friendlyMessage } from '@/modules/deliveries/errors'
 import { statusLabel } from '@/modules/deliveries/labels'
 import { formatRupees } from '@/shared/money'
+import { collectLabel } from './actions'
 
 const jobs = ref<MyJobs | null>(null)
 const error = ref<string | null>(null)
@@ -55,7 +56,7 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { d
             </div>
             <p class="mt-1 text-muted">{{ j.recipient_name }} · {{ j.order_number }}</p>
             <p class="mt-3 text-lg font-bold">
-              {{ Number(j.amount_to_collect) > 0 ? `Collect ${formatRupees(j.amount_to_collect)}` : 'Already paid' }}
+              {{ collectLabel(j) }}
             </p>
           </RouterLink>
         </li>

@@ -48,7 +48,12 @@ pub struct ListItem {
     pub locality: String,
     /// The current driver, else the last one assigned; null when never assigned.
     pub driver: Option<DriverBrief>,
+    /// What the driver collects at the door: 0.00 when the shop collects.
     pub amount_to_collect: String,
+    /// Who collects the money: `driver` or `shop`.
+    pub collector: String,
+    /// What the customer still owes on the order, whoever collects it.
+    pub owed: String,
     pub fee: String,
     /// When the status last changed.
     pub since: DateTime<Utc>,
@@ -147,6 +152,8 @@ pub async fn list(conn: &mut PgConnection, tab: Tab) -> AppResult<DeliveryList> 
             },
             fail_reason: r.fail_reason.filter(|_| r.status == "failed"),
             amount_to_collect: money(to_collect(&r.collector, r.owed)),
+            owed: money(r.owed),
+            collector: r.collector,
             id: r.id,
             order_id: r.order_id,
             order_number: r.order_number,

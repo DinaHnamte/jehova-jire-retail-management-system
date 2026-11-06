@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/shared/api/errors'
-import { canFail, primaryAction, statusConflictIsDone } from './actions'
+import { canFail, collectLabel, primaryAction, statusConflictIsDone } from './actions'
 
 describe('primaryAction', () => {
   it('is the next step for the driver', () => {
@@ -29,5 +29,17 @@ describe('statusConflictIsDone', () => {
     expect(statusConflictIsDone(conflict('delivered', 'OTHER'), 'delivered')).toBe(false)
     expect(statusConflictIsDone(conflict('delivered', 'DELIVERY_STATUS', 400), 'delivered')).toBe(false)
     expect(statusConflictIsDone(new ApiError(409, 'DELIVERY_STATUS', 'x'), 'delivered')).toBe(false)
+  })
+})
+
+describe('collectLabel', () => {
+  it('tells the driver what to collect', () => {
+    expect(collectLabel({ collector: 'driver', amount_to_collect: '130.00' })).toBe('Collect ₹130.00')
+  })
+  it('says nothing to collect when the shop collects', () => {
+    expect(collectLabel({ collector: 'shop', amount_to_collect: '0.00' })).toBe('Nothing to collect')
+  })
+  it('says already paid when the driver collects and nothing is owed', () => {
+    expect(collectLabel({ collector: 'driver', amount_to_collect: '0.00' })).toBe('Already paid')
   })
 })

@@ -235,5 +235,15 @@ describe('cart store: validation and keys', () => {
       expect(c.fulfilment).toBe('counter')
       expect(c.delivery.fee).toBe('')
     })
+    it('remembers the last address prefill across a reload and forgets it after a sale', () => {
+      const c = setup()
+      const prefill = { recipientName: 'R', recipientPhone: '9862000000', addressLine: 'A', locality: 'L', landmark: '', instructions: '' }
+      c.setPrefilledDelivery(c.delivery, prefill)
+      setActivePinia(createPinia())
+      const again = useCartStore()
+      expect(again.deliveryPrefill).toEqual(prefill)
+      again.clear()
+      expect(again.deliveryPrefill).toBeNull()
+    })
   })
 })

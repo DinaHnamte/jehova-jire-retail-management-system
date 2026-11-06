@@ -40,25 +40,49 @@ export const emptyDraft = (): DeliveryDraft => ({
 
 const blank = (s: string) => s.trim() === ''
 
+/** The draft fields a customer's last delivery (or the customer) fills in. */
+export type AddressFields = Pick<DeliveryDraft, 'recipientName' | 'recipientPhone' | 'addressLine' | 'locality' | 'landmark' | 'instructions'>
+const addressKeys: (keyof AddressFields)[] = ['recipientName', 'recipientPhone', 'addressLine', 'locality', 'landmark', 'instructions']
+
+/** What a prefill puts in each address field ('' where it has nothing). */
+export function prefillValues(addr: LastAddress | null, customer: { name: string | null; phone: string } | null): AddressFields {
+  const v = (s: string | null | undefined) => (s ?? '').trim()
+  return {
+    recipientName: v(addr?.recipient_name ?? customer?.name),
+    recipientPhone: v(addr?.recipient_phone ?? customer?.phone),
+    addressLine: v(addr?.address_line),
+    locality: v(addr?.locality),
+    landmark: v(addr?.landmark),
+    instructions: v(addr?.instructions),
+  }
+}
+
+/** A stored prefill snapshot, or null when it is not one. */
+export function loadPrefill(x: unknown): AddressFields | null {
+  if (!x || typeof x !== 'object') return null
+  const o = x as Record<string, unknown>
+  if (!addressKeys.every((k) => typeof o[k] === 'string')) return null
+  return Object.fromEntries(addressKeys.map((k) => [k, o[k]])) as unknown as AddressFields
+}
+
 /**
- * Fills the empty fields from the customer's last delivery (or, with none, from the customer
- * itself). Anything already typed is kept.
+ * Fills the address fields from the customer's last delivery (or, with none, from the customer
+ * itself). A field is filled when it is empty, or when it still holds what the `previous` prefill
+ * put there (another customer's address the owner didn't touch); such a field is cleared when the
+ * new customer has nothing for it. Anything the owner typed is kept.
  */
 export function draftFromLastAddress(
   addr: LastAddress | null,
   customer: { name: string | null; phone: string } | null,
   current: DeliveryDraft,
+  previous: AddressFields | null = null,
 ): DeliveryDraft {
   const d = { ...current }
-  const fill = (key: 'recipientName' | 'recipientPhone' | 'addressLine' | 'locality' | 'landmark' | 'instructions', value: string | null | undefined) => {
-    if (blank(d[key]) && value && value.trim()) d[key] = value.trim()
+  const next = prefillValues(addr, customer)
+  for (const k of addressKeys) {
+    const untouched = previous !== null && current[k].trim() === previous[k]
+    if (blank(current[k]) || untouched) d[k] = next[k]
   }
-  fill('recipientName', addr?.recipient_name ?? customer?.name)
-  fill('recipientPhone', addr?.recipient_phone ?? customer?.phone)
-  fill('addressLine', addr?.address_line)
-  fill('locality', addr?.locality)
-  fill('landmark', addr?.landmark)
-  fill('instructions', addr?.instructions)
   return d
 }
 
