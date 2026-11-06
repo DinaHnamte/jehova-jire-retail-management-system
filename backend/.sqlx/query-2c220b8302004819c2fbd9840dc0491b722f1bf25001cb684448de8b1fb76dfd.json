@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT 'in' AS \"dir!\", COALESCE(t.method, 'cash') AS \"method!\", -SUM(e.amount) AS \"amount!\"\n           FROM ledger_transactions t\n           JOIN ledger_entries e\n             ON e.transaction_id = t.id AND e.account = 'receivable' AND e.ref_id = $1\n           WHERE t.kind = 'payment'\n           GROUP BY t.method\n           UNION ALL\n           SELECT 'out', e.account, -SUM(e.amount)\n           FROM ledger_transactions t\n           JOIN ledger_entries e\n             ON e.transaction_id = t.id AND e.account IN ('cash', 'upi')\n           WHERE t.order_id = $1 AND t.kind = 'refund'\n           GROUP BY e.account",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "dir!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "method!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "amount!",
+        "type_info": "Numeric",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "2c220b8302004819c2fbd9840dc0491b722f1bf25001cb684448de8b1fb76dfd"
+}

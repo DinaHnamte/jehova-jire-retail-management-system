@@ -1,10 +1,21 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT product_id, product_name, product_code, quantity, list_price, unit_price,\n                line_discount, order_discount_share, net_amount, unit_cost\n         FROM order_lines WHERE order_id = $1 ORDER BY line_no",
+  "query": "SELECT id, product_id, product_name, product_code, quantity,\n                COALESCE((SELECT SUM(rl.quantity) FROM return_lines rl\n                           WHERE rl.order_line_id = order_lines.id), 0)::bigint AS \"returned_quantity!\",\n                list_price, unit_price, line_discount, order_discount_share, net_amount, unit_cost\n         FROM order_lines WHERE order_id = $1 ORDER BY line_no",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
         "name": "product_id",
         "type_info": "Uuid",
         "origin": {
@@ -15,7 +26,7 @@
         }
       },
       {
-        "ordinal": 1,
+        "ordinal": 2,
         "name": "product_name",
         "type_info": "Text",
         "origin": {
@@ -26,7 +37,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "product_code",
         "type_info": "Text",
         "origin": {
@@ -37,7 +48,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "quantity",
         "type_info": "Int8",
         "origin": {
@@ -48,7 +59,13 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
+        "name": "returned_quantity!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
         "name": "list_price",
         "type_info": "Numeric",
         "origin": {
@@ -59,7 +76,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 7,
         "name": "unit_price",
         "type_info": "Numeric",
         "origin": {
@@ -70,7 +87,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
         "name": "line_discount",
         "type_info": "Numeric",
         "origin": {
@@ -81,7 +98,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "order_discount_share",
         "type_info": "Numeric",
         "origin": {
@@ -92,7 +109,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "net_amount",
         "type_info": "Numeric",
         "origin": {
@@ -103,7 +120,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "unit_cost",
         "type_info": "Numeric",
         "origin": {
@@ -122,8 +139,10 @@
     "nullable": [
       false,
       false,
+      false,
       true,
       false,
+      null,
       false,
       false,
       false,
@@ -132,5 +151,5 @@
       true
     ]
   },
-  "hash": "bb61ff63d57a8c5bdc6e0066240b8d30dafdf4ba378e760f968f628c139f09a0"
+  "hash": "861dd6a9461f3318062871ae4eddeba661c0ea6d8db1ff95f33eab760b615f31"
 }

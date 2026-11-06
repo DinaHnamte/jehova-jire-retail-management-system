@@ -93,7 +93,8 @@ pub async fn run(db: &PgPool) -> AppResult<CheckRun> {
            FROM orders o
            CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e
                                WHERE e.account = 'receivable' AND e.ref_id = o.id) r
-           WHERE o.status = 'confirmed' AND (r.owed < 0 OR r.owed > o.total)
+           WHERE (o.status = 'confirmed' AND (r.owed < 0 OR r.owed > o.total))
+              OR (o.status = 'cancelled' AND r.owed <> 0)
            ORDER BY o.id"#
     )
     .fetch_all(db)

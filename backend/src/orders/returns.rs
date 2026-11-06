@@ -212,7 +212,17 @@ async fn plan(
             .find(|r| r.id == l.order_line_id)
             .ok_or_else(|| line_field(i, "order_line_id", "This item isn't on this sale."))?;
         let left = row.quantity - row.returned;
-        if l.quantity < 1 || l.quantity > left {
+        if l.quantity < 1 {
+            return Err(line_field(i, "quantity", "Enter 1 or more."));
+        }
+        if left < 1 {
+            return Err(line_field(
+                i,
+                "quantity",
+                "This item was already returned in full.",
+            ));
+        }
+        if l.quantity > left {
             return Err(line_field(
                 i,
                 "quantity",

@@ -115,6 +115,8 @@ mod tests {
             total,
             paid,
             owed: total - paid,
+            refunded: Decimal::ZERO,
+            returned: vec![],
             cancelled: false,
         }
     }

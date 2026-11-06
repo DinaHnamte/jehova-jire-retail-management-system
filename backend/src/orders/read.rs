@@ -31,10 +31,13 @@ fn money(d: Decimal) -> String {
 
 #[derive(Debug, Serialize)]
 pub struct LineOut {
+    pub id: Uuid,
     pub product_id: Uuid,
     pub product_name: String,
     pub product_code: Option<String>,
     pub quantity: i64,
+    /// How many of `quantity` have been given back.
+    pub returned_quantity: i64,
     pub list_price: String,
     pub unit_price: String,
     pub line_discount: String,
@@ -64,6 +67,33 @@ pub struct RefundRow {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ReturnLineRow {
+    pub order_line_id: Uuid,
+    pub product_name: String,
+    pub quantity: i64,
+    pub disposition: String,
+    pub amount: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReturnRow {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub amount: String,
+    pub owed_reduced: String,
+    pub refunded: String,
+    pub refund_method: Option<String>,
+    pub note: Option<String>,
+    pub lines: Vec<ReturnLineRow>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PaidByMethod {
+    pub cash: String,
+    pub upi: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct OrderDetail {
     pub id: Uuid,
     pub number: String,
@@ -76,11 +106,15 @@ pub struct OrderDetail {
     pub total: String,
     pub paid: String,
     pub owed: String,
-    /// `paid`, `partly_paid` or `unpaid`.
+    /// `paid`, `partly_paid`, `unpaid` or `cancelled`.
     pub payment_status: &'static str,
+    /// What is currently paid per method: payments less refunds.
+    pub paid_by_method: PaidByMethod,
     pub payments: Vec<PaymentRow>,
     /// Money handed back on this order (cancel or return), oldest first.
     pub refunds: Vec<RefundRow>,
+    /// Returns taken on this sale, newest first.
+    pub returns: Vec<ReturnRow>,
     pub note: Option<String>,
     pub receipt_url: String,
     pub whatsapp_url: Option<String>,
@@ -99,6 +133,16 @@ pub struct OrderSummary {
     pub paid: String,
     pub owed: String,
     pub payment_status: &'static str,
+}
+
+/// One sold line that has been given back, summed over all its returns.
+#[derive(Debug, Serialize)]
+pub struct ReturnedLine {
+    pub name: String,
+    pub code: Option<String>,
+    pub quantity: i64,
+    #[serde(serialize_with = "money_str")]
+    pub amount: Decimal,
 }
 
 #[derive(Debug, Serialize)]
@@ -133,12 +177,18 @@ pub struct PublicReceipt {
     pub paid: Decimal,
     #[serde(serialize_with = "money_str")]
     pub owed: Decimal,
+    /// Total handed back in cash or UPI.
+    #[serde(serialize_with = "money_str")]
+    pub refunded: Decimal,
+    pub returned: Vec<ReturnedLine>,
     pub cancelled: bool,
 }
 
-/// `owed == 0` is paid (also for a 0 bill); `owed == total` is unpaid; anything between is partly.
-pub fn payment_status(total: Decimal, owed: Decimal) -> &'static str {
-    if owed.is_zero() {
+/// A cancelled sale is `cancelled`. Otherwise `owed == 0` is paid (also for a 0 bill); `owed == total` is unpaid; anything between is partly.
+pub fn payment_status(status: &str, total: Decimal, owed: Decimal) -> &'static str {
+    if status == "cancelled" {
+        "cancelled"
+    } else if owed.is_zero() {
         "paid"
     } else if owed == total {
         "unpaid"
@@ -185,6 +235,8 @@ async fn order_row(conn: &mut PgConnection, id: Uuid) -> AppResult<OrderRow> {
 }
 
 struct LineRow {
+    id: Uuid,
+    returned_quantity: i64,
     product_id: Uuid,
     product_name: String,
     product_code: Option<String>,
@@ -200,13 +252,23 @@ struct LineRow {
 async fn line_rows(conn: &mut PgConnection, order_id: Uuid) -> AppResult<Vec<LineRow>> {
     Ok(sqlx::query_as!(
         LineRow,
-        "SELECT product_id, product_name, product_code, quantity, list_price, unit_price,
-                line_discount, order_discount_share, net_amount, unit_cost
-         FROM order_lines WHERE order_id = $1 ORDER BY line_no",
+        r#"SELECT id, product_id, product_name, product_code, quantity,
+                COALESCE((SELECT SUM(rl.quantity) FROM return_lines rl
+                           WHERE rl.order_line_id = order_lines.id), 0)::bigint AS "returned_quantity!",
+                list_price, unit_price, line_discount, order_discount_share, net_amount, unit_cost
+         FROM order_lines WHERE order_id = $1 ORDER BY line_no"#,
         order_id
     )
     .fetch_all(conn)
     .await?)
+}
+
+/// What the order owes, what is currently paid and what was handed back.
+#[derive(Clone, Copy)]
+struct Money {
+    owed: Decimal,
+    paid: Decimal,
+    refunded: Decimal,
 }
 
 fn receipt_from(
@@ -214,7 +276,8 @@ fn receipt_from(
     o: &OrderRow,
     lines: &[LineRow],
     customer_name: Option<String>,
-    owed: Decimal,
+    m: Money,
+    returned: Vec<ReturnedLine>,
 ) -> PublicReceipt {
     PublicReceipt {
         shop_name,
@@ -235,8 +298,10 @@ fn receipt_from(
         subtotal: o.subtotal,
         order_discount: o.order_discount,
         total: o.total,
-        paid: o.total - owed,
-        owed,
+        paid: m.paid,
+        owed: m.owed,
+        refunded: m.refunded,
+        returned,
         cancelled: o.status == "cancelled",
     }
 }
@@ -292,6 +357,115 @@ async fn refund_rows(conn: &mut PgConnection, order_id: Uuid) -> AppResult<Vec<R
         .collect())
 }
 
+/// Money in minus money out, per method: payments credited to this order less cash or UPI
+/// handed back in its refunds. Returns (cash, upi, refunded).
+async fn paid_by_method(
+    conn: &mut PgConnection,
+    order_id: Uuid,
+) -> AppResult<(Decimal, Decimal, Decimal)> {
+    let rows = sqlx::query!(
+        r#"SELECT 'in' AS "dir!", COALESCE(t.method, 'cash') AS "method!", -SUM(e.amount) AS "amount!"
+           FROM ledger_transactions t
+           JOIN ledger_entries e
+             ON e.transaction_id = t.id AND e.account = 'receivable' AND e.ref_id = $1
+           WHERE t.kind = 'payment'
+           GROUP BY t.method
+           UNION ALL
+           SELECT 'out', e.account, -SUM(e.amount)
+           FROM ledger_transactions t
+           JOIN ledger_entries e
+             ON e.transaction_id = t.id AND e.account IN ('cash', 'upi')
+           WHERE t.order_id = $1 AND t.kind = 'refund'
+           GROUP BY e.account"#,
+        order_id
+    )
+    .fetch_all(conn)
+    .await?;
+    let (mut cash, mut upi, mut refunded) = (Decimal::ZERO, Decimal::ZERO, Decimal::ZERO);
+    for r in rows {
+        let sign = if r.dir == "in" {
+            Decimal::ONE
+        } else {
+            refunded += r.amount;
+            -Decimal::ONE
+        };
+        match r.method.as_str() {
+            "upi" => upi += sign * r.amount,
+            _ => cash += sign * r.amount,
+        }
+    }
+    Ok((cash, upi, refunded))
+}
+
+async fn return_rows(conn: &mut PgConnection, order_id: Uuid) -> AppResult<Vec<ReturnRow>> {
+    let rows = sqlx::query!(
+        "SELECT id, created_at, amount, owed_reduced, refunded, refund_method, note
+         FROM returns WHERE order_id = $1 ORDER BY created_at DESC, id DESC",
+        order_id
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    let lines = sqlx::query!(
+        r#"SELECT rl.return_id, rl.order_line_id, ol.product_name, rl.quantity, rl.disposition,
+                  rl.amount
+           FROM return_lines rl
+           JOIN order_lines ol ON ol.id = rl.order_line_id
+           JOIN returns r ON r.id = rl.return_id
+           WHERE r.order_id = $1
+           ORDER BY ol.line_no, rl.id"#,
+        order_id
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| ReturnRow {
+            id: r.id,
+            created_at: r.created_at,
+            amount: money(r.amount),
+            owed_reduced: money(r.owed_reduced),
+            refunded: money(r.refunded),
+            refund_method: r.refund_method,
+            note: r.note,
+            lines: lines
+                .iter()
+                .filter(|l| l.return_id == r.id)
+                .map(|l| ReturnLineRow {
+                    order_line_id: l.order_line_id,
+                    product_name: l.product_name.clone(),
+                    quantity: l.quantity,
+                    disposition: l.disposition.clone(),
+                    amount: money(l.amount),
+                })
+                .collect(),
+        })
+        .collect())
+}
+
+async fn returned_lines(conn: &mut PgConnection, order_id: Uuid) -> AppResult<Vec<ReturnedLine>> {
+    let rows = sqlx::query!(
+        r#"SELECT ol.product_name AS name, ol.product_code AS code,
+                  SUM(rl.quantity)::bigint AS "quantity!", SUM(rl.amount) AS "amount!"
+           FROM return_lines rl
+           JOIN order_lines ol ON ol.id = rl.order_line_id
+           WHERE ol.order_id = $1
+           GROUP BY ol.id, ol.line_no, ol.product_name, ol.product_code
+           ORDER BY ol.line_no"#,
+        order_id
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| ReturnedLine {
+            name: r.name,
+            code: r.code,
+            quantity: r.quantity,
+            amount: r.amount,
+        })
+        .collect())
+}
+
 pub async fn order_detail(
     conn: &mut PgConnection,
     id: Uuid,
@@ -307,10 +481,25 @@ pub async fn order_detail(
     let owed = ledger::order_owed(conn, id).await?;
     let payments = payment_rows(conn, id).await?;
     let refunds = refund_rows(conn, id).await?;
+    let returns = return_rows(conn, id).await?;
+    let (cash, upi, refunded) = paid_by_method(conn, id).await?;
+    let paid = cash + upi;
     let receipt_url = format!("{}/r/{}", cfg.public_url, o.receipt_token);
     let whatsapp_url = match &customer {
         Some(c) => {
-            let receipt = receipt_from(shop_name(conn).await?, &o, &lines, c.name.clone(), owed);
+            let m = Money {
+                owed,
+                paid,
+                refunded,
+            };
+            let receipt = receipt_from(
+                shop_name(conn).await?,
+                &o,
+                &lines,
+                c.name.clone(),
+                m,
+                vec![],
+            );
             let methods: Vec<&str> = [("cash", "cash"), ("upi", "UPI")]
                 .iter()
                 .filter(|(m, _)| payments.iter().any(|p| p.method == *m))
@@ -323,6 +512,7 @@ pub async fn order_detail(
         }
         None => None,
     };
+    let payment_status = payment_status(&o.status, o.total, owed);
     Ok(OrderDetail {
         id: o.id,
         number: o.number,
@@ -332,6 +522,8 @@ pub async fn order_detail(
         lines: lines
             .into_iter()
             .map(|l| LineOut {
+                id: l.id,
+                returned_quantity: l.returned_quantity,
                 product_id: l.product_id,
                 product_name: l.product_name,
                 product_code: l.product_code,
@@ -350,11 +542,16 @@ pub async fn order_detail(
         subtotal: money(o.subtotal),
         order_discount: money(o.order_discount),
         total: money(o.total),
-        paid: money(o.total - owed),
+        paid: money(paid),
         owed: money(owed),
-        payment_status: payment_status(o.total, owed),
+        payment_status,
+        paid_by_method: PaidByMethod {
+            cash: money(cash),
+            upi: money(upi),
+        },
         payments,
         refunds,
+        returns,
         note: o.note,
         receipt_url,
         whatsapp_url,
@@ -373,12 +570,20 @@ pub async fn public_receipt(conn: &mut PgConnection, token: &str) -> AppResult<P
         None => None,
     };
     let owed = ledger::order_owed(conn, id).await?;
+    let (cash, upi, refunded) = paid_by_method(conn, id).await?;
+    let returned = returned_lines(conn, id).await?;
+    let m = Money {
+        owed,
+        paid: cash + upi,
+        refunded,
+    };
     Ok(receipt_from(
         shop_name(conn).await?,
         &o,
         &lines,
         customer_name,
-        owed,
+        m,
+        returned,
     ))
 }
 
@@ -400,8 +605,25 @@ impl PaidFilter {
     }
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StatusFilter {
+    Confirmed,
+    Cancelled,
+}
+
+impl StatusFilter {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Confirmed => "confirmed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct OrderListParams {
+    pub status: Option<StatusFilter>,
     pub from: Option<NaiveDate>,
     pub to: Option<NaiveDate>,
     pub paid: Option<PaidFilter>,
@@ -426,6 +648,7 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
     let until =
         p.to.map(|d| ist_start(d.checked_add_days(Days::new(1)).unwrap_or(d)));
     let paid = p.paid.map(PaidFilter::as_str);
+    let status = p.status.map(StatusFilter::as_str);
     let total = sqlx::query_scalar!(
         r#"SELECT count(*) AS "n!"
            FROM orders o
@@ -434,19 +657,30 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
            WHERE ($1::timestamptz IS NULL OR o.created_at >= $1)
              AND ($2::timestamptz IS NULL OR o.created_at < $2)
              AND ($3::uuid IS NULL OR o.customer_id = $3)
-             AND ($4::text IS NULL OR $4 = CASE WHEN r.owed = 0 THEN 'paid'
-                                                WHEN r.owed = o.total THEN 'unpaid'
-                                                ELSE 'partly_paid' END)"#,
+             AND ($4::text IS NULL OR (o.status = 'confirmed'
+                                       AND $4 = CASE WHEN r.owed = 0 THEN 'paid'
+                                                     WHEN r.owed = o.total THEN 'unpaid'
+                                                     ELSE 'partly_paid' END))
+             AND ($5::text IS NULL OR o.status = $5)"#,
         from,
         until,
         p.customer_id,
-        paid
+        paid,
+        status
     )
     .fetch_one(&mut *conn)
     .await?;
     let rows = sqlx::query!(
         r#"SELECT o.id, o.number, o.status, o.created_at, o.customer_id, o.total,
-                  c.name AS "customer_name?", c.phone AS "customer_phone?", r.owed AS "owed!"
+                  c.name AS "customer_name?", c.phone AS "customer_phone?", r.owed AS "owed!",
+                  (COALESCE((SELECT -SUM(e.amount) FROM ledger_entries e
+                              JOIN ledger_transactions t ON t.id = e.transaction_id
+                             WHERE t.kind = 'payment' AND e.account = 'receivable'
+                               AND e.ref_id = o.id), 0)
+                   - COALESCE((SELECT -SUM(e.amount) FROM ledger_entries e
+                                JOIN ledger_transactions t ON t.id = e.transaction_id
+                               WHERE t.kind = 'refund' AND t.order_id = o.id
+                                 AND e.account IN ('cash', 'upi')), 0)) AS "paid!"
            FROM orders o
            LEFT JOIN customers c ON c.id = o.customer_id
            CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e
@@ -454,15 +688,18 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
            WHERE ($1::timestamptz IS NULL OR o.created_at >= $1)
              AND ($2::timestamptz IS NULL OR o.created_at < $2)
              AND ($3::uuid IS NULL OR o.customer_id = $3)
-             AND ($4::text IS NULL OR $4 = CASE WHEN r.owed = 0 THEN 'paid'
-                                                WHEN r.owed = o.total THEN 'unpaid'
-                                                ELSE 'partly_paid' END)
+             AND ($4::text IS NULL OR (o.status = 'confirmed'
+                                       AND $4 = CASE WHEN r.owed = 0 THEN 'paid'
+                                                     WHEN r.owed = o.total THEN 'unpaid'
+                                                     ELSE 'partly_paid' END))
+             AND ($5::text IS NULL OR o.status = $5)
            ORDER BY o.created_at DESC, o.id DESC
-           LIMIT $5 OFFSET $6"#,
+           LIMIT $6 OFFSET $7"#,
         from,
         until,
         p.customer_id,
         paid,
+        status,
         paging.per_page,
         paging.offset()
     )
@@ -471,6 +708,7 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
     let items = rows
         .into_iter()
         .map(|r| OrderSummary {
+            payment_status: payment_status(&r.status, r.total, r.owed),
             id: r.id,
             number: r.number,
             status: r.status,
@@ -478,9 +716,8 @@ pub async fn list(conn: &mut PgConnection, p: OrderListParams) -> AppResult<Page
             customer_id: r.customer_id,
             customer_name: r.customer_name,
             customer_phone: r.customer_phone,
-            paid: money(r.total - r.owed),
+            paid: money(r.paid),
             owed: money(r.owed),
-            payment_status: payment_status(r.total, r.owed),
             total: money(r.total),
         })
         .collect();

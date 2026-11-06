@@ -425,7 +425,11 @@ async fn partial_returns_add_up_to_net(pool: PgPool) {
         json!({"lines": one(l, 1, "sellable"), "refund_method": "cash"}),
     )
     .await;
-    assert_field(&r, "lines[0].quantity", "Only 0 left to return.");
+    assert_field(
+        &r,
+        "lines[0].quantity",
+        "This item was already returned in full.",
+    );
     let cash: Decimal =
         sqlx::query_scalar("SELECT SUM(amount) FROM ledger_entries WHERE account = 'cash'")
             .fetch_one(&pool)
@@ -452,7 +456,11 @@ async fn cannot_return_more_than_left(pool: PgPool) {
         .status(),
         201
     );
-    for qty in [2, 0, -1] {
+    for (qty, msg) in [
+        (2, "Only 1 left to return."),
+        (0, "Enter 1 or more."),
+        (-1, "Enter 1 or more."),
+    ] {
         let r = give_back(
             &sh,
             &o,
@@ -460,7 +468,7 @@ async fn cannot_return_more_than_left(pool: PgPool) {
             json!({"lines": one(l, qty, "sellable")}),
         )
         .await;
-        assert_field(&r, "lines[0].quantity", "Only 1 left to return.");
+        assert_field(&r, "lines[0].quantity", msg);
     }
     assert_eq!(count(&pool, "SELECT count(*) FROM returns").await, 1);
     assert_eq!(count(&pool, "SELECT count(*) FROM return_lines").await, 1);

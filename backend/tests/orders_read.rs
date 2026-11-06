@@ -351,3 +351,227 @@ async fn receipt_adds_order_discount_back_to_lines(pool: PgPool) {
         "{wa}"
     );
 }
+
+async fn post_as(sh: &Shop, s: &Session, path: &str, body: Value) -> TestResponse {
+    sh.a.send(
+        Request::post(path)
+            .header("content-type", "application/json")
+            .header("cookie", &s.cookie)
+            .header("x-csrf-token", &s.csrf)
+            .header("idempotency-key", format!("key-{}", Uuid::now_v7()))
+            .body(Body::from(body.to_string()))
+            .unwrap(),
+    )
+    .await
+}
+
+async fn line_id(pool: &PgPool, order: &Value) -> Uuid {
+    sqlx::query_scalar("SELECT id FROM order_lines WHERE order_id = $1 ORDER BY line_no LIMIT 1")
+        .bind(Uuid::parse_str(order["id"].as_str().unwrap()).unwrap())
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// Gives back `qty` of the first line; `refund` is the cash method when money goes back.
+async fn give_back(
+    sh: &Shop,
+    pool: &PgPool,
+    order: &Value,
+    qty: i64,
+    refund: Option<&str>,
+) -> Value {
+    let l = line_id(pool, order).await;
+    let mut body =
+        json!({"lines": [{"order_line_id": l, "quantity": qty, "disposition": "sellable"}]});
+    if let Some(m) = refund {
+        body["refund_method"] = json!(m);
+    }
+    let r = post_as(
+        sh,
+        &sh.cashier,
+        &format!("/api/v1/orders/{}/returns", order["id"].as_str().unwrap()),
+        body,
+    )
+    .await;
+    assert_eq!(r.status(), 201, "{:?}", r.json());
+    r.json()
+}
+
+async fn cancel(sh: &Shop, order: &Value) -> Value {
+    let r = post_as(
+        sh,
+        &sh.boss,
+        &format!("/api/v1/orders/{}/cancel", order["id"].as_str().unwrap()),
+        json!({}),
+    )
+    .await;
+    assert_eq!(r.status(), 200, "{:?}", r.json());
+    r.json()
+}
+
+/// Two Plates at 100: cash 150 and UPI 50.
+async fn split_paid(sh: &Shop) -> Value {
+    checkout(
+        sh,
+        json!({"lines": [{"product_id": sh.p[0], "quantity": 2}],
+               "payments": [{"method": "cash", "amount": "150"}, {"method": "upi", "amount": "50"}]}),
+    )
+    .await
+    .json()
+}
+
+#[sqlx::test]
+async fn detail_after_partial_return_shows_returned_quantity_and_return_row(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = part_paid(&sh).await;
+    give_back(&sh, &pool, &o, 1, None).await;
+    let d = get(
+        &sh,
+        &sh.cashier,
+        &format!("/api/v1/orders/{}", o["id"].as_str().unwrap()),
+    )
+    .await
+    .json();
+    let l = &d["lines"][0];
+    assert_eq!(l["id"], json!(line_id(&pool, &o).await));
+    assert_eq!(l["quantity"], 2);
+    assert_eq!(l["returned_quantity"], 1);
+    let r = &d["returns"];
+    assert_eq!(r.as_array().unwrap().len(), 1);
+    assert_eq!(r[0]["amount"], "100.00");
+    assert_eq!(r[0]["owed_reduced"], "100.00");
+    assert_eq!(r[0]["refunded"], "0.00");
+    assert_eq!(r[0]["refund_method"], Value::Null);
+    assert_eq!(r[0]["lines"][0]["product_name"], "Plate");
+    assert_eq!(r[0]["lines"][0]["quantity"], 1);
+    assert_eq!(r[0]["lines"][0]["disposition"], "sellable");
+    assert_eq!(r[0]["lines"][0]["amount"], "100.00");
+    assert_eq!(d["owed"], "20.00");
+    assert_eq!(d["paid"], "80.00");
+    assert_eq!(d["payment_status"], "partly_paid");
+}
+
+#[sqlx::test]
+async fn detail_paid_by_method_nets_refunds(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = split_paid(&sh).await;
+    let before = get(
+        &sh,
+        &sh.cashier,
+        &format!("/api/v1/orders/{}", o["id"].as_str().unwrap()),
+    )
+    .await
+    .json();
+    assert_eq!(
+        before["paid_by_method"],
+        json!({"cash": "150.00", "upi": "50.00"})
+    );
+    give_back(&sh, &pool, &o, 1, Some("cash")).await;
+    let d = get(
+        &sh,
+        &sh.cashier,
+        &format!("/api/v1/orders/{}", o["id"].as_str().unwrap()),
+    )
+    .await
+    .json();
+    assert_eq!(
+        d["paid_by_method"],
+        json!({"cash": "50.00", "upi": "50.00"})
+    );
+    assert_eq!(d["paid"], "100.00");
+    assert_eq!(d["owed"], "0.00");
+    assert_eq!(d["returns"][0]["refunded"], "100.00");
+    assert_eq!(d["returns"][0]["refund_method"], "cash");
+}
+
+#[sqlx::test]
+async fn cancelled_detail_status_and_payment_status(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = split_paid(&sh).await;
+    let d = cancel(&sh, &o).await;
+    assert_eq!(d["status"], "cancelled");
+    assert_eq!(d["payment_status"], "cancelled");
+    assert_eq!(d["paid"], "0.00");
+    assert_eq!(d["paid_by_method"], json!({"cash": "0.00", "upi": "0.00"}));
+    let g = get(
+        &sh,
+        &sh.cashier,
+        &format!("/api/v1/orders/{}", o["id"].as_str().unwrap()),
+    )
+    .await
+    .json();
+    assert_eq!(g["status"], "cancelled");
+    assert_eq!(g["payment_status"], "cancelled");
+    let list = get(&sh, &sh.cashier, "/api/v1/orders").await.json();
+    assert_eq!(list["items"][0]["payment_status"], "cancelled");
+    assert_eq!(list["items"][0]["paid"], "0.00");
+}
+
+#[sqlx::test]
+async fn list_paid_filter_excludes_cancelled(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let kept = split_paid(&sh).await;
+    let gone = split_paid(&sh).await;
+    cancel(&sh, &gone).await;
+    let all = get(&sh, &sh.cashier, "/api/v1/orders").await.json();
+    assert_eq!(all["total"], 2);
+    let paid = get(&sh, &sh.cashier, "/api/v1/orders?paid=paid")
+        .await
+        .json();
+    assert_eq!(paid["total"], 1);
+    assert_eq!(paid["items"][0]["id"], kept["id"]);
+    // Paid is net of refunds in the list too.
+    give_back(&sh, &pool, &kept, 1, Some("upi")).await;
+    let all = get(&sh, &sh.cashier, "/api/v1/orders").await.json();
+    let row = all["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["id"] == kept["id"])
+        .unwrap();
+    assert_eq!(row["paid"], "100.00");
+}
+
+#[sqlx::test]
+async fn list_status_cancelled(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let kept = split_paid(&sh).await;
+    let gone = split_paid(&sh).await;
+    cancel(&sh, &gone).await;
+    let r = get(&sh, &sh.cashier, "/api/v1/orders?status=cancelled")
+        .await
+        .json();
+    assert_eq!(r["total"], 1);
+    assert_eq!(r["items"][0]["id"], gone["id"]);
+    let r = get(&sh, &sh.cashier, "/api/v1/orders?status=confirmed")
+        .await
+        .json();
+    assert_eq!(r["total"], 1);
+    assert_eq!(r["items"][0]["id"], kept["id"]);
+}
+
+#[sqlx::test]
+async fn public_receipt_lists_returned_items(pool: PgPool) {
+    let sh = shop(&pool).await;
+    let o = split_paid(&sh).await;
+    give_back(&sh, &pool, &o, 1, Some("cash")).await;
+    let token = o["receipt_url"]
+        .as_str()
+        .unwrap()
+        .rsplit('/')
+        .next()
+        .unwrap();
+    let r = sh.a.get(&format!("/api/v1/public/receipts/{token}")).await;
+    assert_eq!(r.status(), 200, "{:?}", r.json());
+    let v = r.json();
+    assert_eq!(v["paid"], "100.00");
+    assert_eq!(v["refunded"], "100.00");
+    let ret = v["returned"].as_array().unwrap();
+    assert_eq!(ret.len(), 1);
+    assert_eq!(ret[0]["name"], "Plate");
+    assert_eq!(ret[0]["quantity"], 1);
+    assert_eq!(ret[0]["amount"], "100.00");
+    assert!(ret[0].get("code").is_some());
+    assert!(!v.to_string().contains("cost"), "{v}");
+}

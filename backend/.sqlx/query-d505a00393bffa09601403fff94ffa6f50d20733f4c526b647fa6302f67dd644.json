@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT o.id, o.number, o.status, o.created_at, o.customer_id, o.total,\n                  c.name AS \"customer_name?\", c.phone AS \"customer_phone?\", r.owed AS \"owed!\"\n           FROM orders o\n           LEFT JOIN customers c ON c.id = o.customer_id\n           CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e\n                               WHERE e.account = 'receivable' AND e.ref_id = o.id) r\n           WHERE ($1::timestamptz IS NULL OR o.created_at >= $1)\n             AND ($2::timestamptz IS NULL OR o.created_at < $2)\n             AND ($3::uuid IS NULL OR o.customer_id = $3)\n             AND ($4::text IS NULL OR $4 = CASE WHEN r.owed = 0 THEN 'paid'\n                                                WHEN r.owed = o.total THEN 'unpaid'\n                                                ELSE 'partly_paid' END)\n           ORDER BY o.created_at DESC, o.id DESC\n           LIMIT $5 OFFSET $6",
+  "query": "SELECT o.id, o.number, o.status, o.created_at, o.customer_id, o.total,\n                  c.name AS \"customer_name?\", c.phone AS \"customer_phone?\", r.owed AS \"owed!\",\n                  (COALESCE((SELECT -SUM(e.amount) FROM ledger_entries e\n                              JOIN ledger_transactions t ON t.id = e.transaction_id\n                             WHERE t.kind = 'payment' AND e.account = 'receivable'\n                               AND e.ref_id = o.id), 0)\n                   - COALESCE((SELECT -SUM(e.amount) FROM ledger_entries e\n                                JOIN ledger_transactions t ON t.id = e.transaction_id\n                               WHERE t.kind = 'refund' AND t.order_id = o.id\n                                 AND e.account IN ('cash', 'upi')), 0)) AS \"paid!\"\n           FROM orders o\n           LEFT JOIN customers c ON c.id = o.customer_id\n           CROSS JOIN LATERAL (SELECT COALESCE(SUM(e.amount), 0) AS owed FROM ledger_entries e\n                               WHERE e.account = 'receivable' AND e.ref_id = o.id) r\n           WHERE ($1::timestamptz IS NULL OR o.created_at >= $1)\n             AND ($2::timestamptz IS NULL OR o.created_at < $2)\n             AND ($3::uuid IS NULL OR o.customer_id = $3)\n             AND ($4::text IS NULL OR (o.status = 'confirmed'\n                                       AND $4 = CASE WHEN r.owed = 0 THEN 'paid'\n                                                     WHEN r.owed = o.total THEN 'unpaid'\n                                                     ELSE 'partly_paid' END))\n             AND ($5::text IS NULL OR o.status = $5)\n           ORDER BY o.created_at DESC, o.id DESC\n           LIMIT $6 OFFSET $7",
   "describe": {
     "columns": [
       {
@@ -96,6 +96,12 @@
         "name": "owed!",
         "type_info": "Numeric",
         "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "paid!",
+        "type_info": "Numeric",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -103,6 +109,7 @@
         "Timestamptz",
         "Timestamptz",
         "Uuid",
+        "Text",
         "Text",
         "Int8",
         "Int8"
@@ -117,8 +124,9 @@
       false,
       true,
       false,
+      null,
       null
     ]
   },
-  "hash": "2aa13e90c11cb421ecfdfa99e749d6f8864ea9fdfd8f86f4404934bb3c3786c5"
+  "hash": "d505a00393bffa09601403fff94ffa6f50d20733f4c526b647fa6302f67dd644"
 }
