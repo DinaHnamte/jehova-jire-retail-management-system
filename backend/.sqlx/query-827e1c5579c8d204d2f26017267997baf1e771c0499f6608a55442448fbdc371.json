@@ -1,0 +1,72 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ol.id, ol.product_id, ol.quantity, ol.net_amount,\n                  COALESCE((SELECT SUM(rl.quantity) FROM return_lines rl\n                            WHERE rl.order_line_id = ol.id), 0)::BIGINT AS \"returned!\"\n           FROM order_lines ol\n           WHERE ol.order_id = $1 AND ol.id = ANY($2)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "product_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "product_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "quantity",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "quantity"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "net_amount",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "order_lines",
+            "name": "net_amount"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "returned!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "827e1c5579c8d204d2f26017267997baf1e771c0499f6608a55442448fbdc371"
+}
