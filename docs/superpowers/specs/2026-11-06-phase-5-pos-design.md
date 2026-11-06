@@ -131,6 +131,14 @@ Debits positive, credits negative.
 | Return with refund (5b) | Dr `sales_returns` A · Cr `cash`/`upi` A |
 | Return reducing what's owed (5b) | Dr `sales_returns` A · Cr `receivable[o]` A |
 
+> Note (7 Nov 2026, Phase 5b): cancel does not reverse payment
+> transactions. A later payment can cover several sales, so cancel
+> posts a `cancel` txn reversing the sale (Dr `sales_revenue` · Cr
+> `receivable[o]`) plus one `refund` txn per method paid (Dr
+> `receivable[o]` · Cr `cash`/`upi`). Returns post a `return_credit`
+> (Dr `sales_returns` · Cr `receivable[o]`) for the owed part and a
+> `refund` (Dr `sales_returns` · Cr `cash`/`upi`) for the rest.
+
 Rules:
 - A checkout payment can't exceed the total; a later payment can't
   exceed what the customer owes. There are no negative receivables.

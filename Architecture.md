@@ -443,13 +443,13 @@ Counter sales and delivery orders are the same `orders` entity
 | Field | Values |
 |---|---|
 | `fulfilment` | `counter`, `delivery` |
-| `status` | `confirmed` or `cancelled` (cancel arrives in Phase 5b) |
-| `payment_status` | derived from the ledger: `unpaid`, `partially_paid`, `paid` (refund states come with returns) |
+| `status` | `confirmed` or `cancelled` |
+| `payment_status` | derived from the ledger: `unpaid`, `partially_paid`, `paid`; a cancelled order shows as cancelled. Returns change what is owed or refunded, not the status |
 
 ```mermaid
 stateDiagram-v2
     [*] --> confirmed: checkout (stock out, number assigned, receivable posted)
-    confirmed --> cancelled: before handover (stock back, receivable reversed)
+    confirmed --> cancelled: orders.void, only while no item has been returned (stock back, sale reversed, paid money refunded)
 ```
 
 - There is no stored `completed` status and no stored draft. Whether an
@@ -460,7 +460,7 @@ stateDiagram-v2
 - A **delivery order** is confirmed (stock set aside, number assigned)
   and may stay unpaid until the driver collects. Its delivery steps are
   tracked in [Delivery.md](Delivery.md).
-- Voids (manager only, with reversal entries) are still planned.
+- Cancelling (needs `orders.void`) and returning items (needs `returns.create`) are built (Phase 5b, §10.5).
 
 ### 10.2 What happens at confirmation
 
@@ -492,8 +492,8 @@ Every money event is one `ledger_transactions` row with two or more
 zero**; a deferred constraint trigger enforces this. Debits are
 positive, credits negative.
 
-Accounts (`account` + optional `ref_id`). Built in Phase 5a: `receivable`,
-`cash`, `upi`, `sales_revenue`; the rest arrive with their phases.
+Accounts (`account` + optional `ref_id`). Built so far: `receivable`,
+`cash`, `upi`, `sales_revenue`, `sales_returns`; the rest arrive with their phases.
 
 | Account | ref | Meaning |
 |---|---|---|
@@ -506,7 +506,7 @@ Accounts (`account` + optional `ref_id`). Built in Phase 5a: `receivable`,
 | `driver_custody` | driver | Shop money a driver is currently holding |
 | `driver_payable` | driver | What the shop owes a driver for deliveries |
 | `delivery_expense` | — | Cost of driver pay |
-| `sales_returns` | — | Refunds of goods sold (reserved; used from Phase 5b) |
+| `sales_returns` | — | Value of goods returned by customers (Phase 5b) |
 
 Postings:
 
@@ -517,7 +517,9 @@ Postings:
 | Customer pays UPI to shop | Dr `upi` · Cr `receivable[o]` |
 | Driver collects cash at the door | Dr `driver_custody[d]` · Cr `receivable[o]` |
 | Driver hands cash to shop | Dr `cash` · Cr `driver_custody[d]` |
-| Refund cash | Dr `sales_returns` · Cr `cash` |
+| Cancel a sale | `cancel` txn: Dr `sales_revenue` · Cr `receivable[o]` for the sale total (`reverses_id` = the sale txn; skipped for a ₹0 sale), then one `refund` txn per method paid: Dr `receivable[o]` · Cr `cash` or `upi` |
+| Return, owed part | `return_credit` txn: Dr `sales_returns` · Cr `receivable[o]` for min(amount, owed) |
+| Return, refund part | `refund` txn: Dr `sales_returns` · Cr `cash` or `upi` for the rest |
 
 Driver earnings, keeping the fee, and payouts are covered in
 [Delivery.md §6](Delivery.md#6-money).
@@ -555,11 +557,23 @@ one shop's volume.
 
 - A discount is an amount or percentage per line, capped by a
   permission-based limit, and requires a reason.
-- A void (completed → voided) needs `orders.void` and a reason. It
-  reverses stock and money with new records. Nothing is deleted.
-- A return refers back to the original order and its lines. The person
-  chooses a disposition for each line (sellable / damaged / inspection).
-  A refund is posted to the ledger.
+- **Cancel** needs `orders.void`; the reason is optional. It is not
+  allowed once any item has been returned (409 `HAS_RETURNS`). It puts
+  all stock back (`sale_cancel`), reverses the sale and refunds each
+  method that was paid, with new records. Nothing is deleted. Cancel
+  reverses the sale and posts per-method refunds rather than reversing
+  payment transactions, because one later payment can cover several
+  sales.
+- **Return** needs `returns.create` and refers back to the original
+  order's lines. For each line the person picks a quantity and a
+  disposition, `sellable` (restocked, `sale_return`) or `damaged`
+  (not restocked). A line's amount is worked out cumulatively from its
+  net amount, so partial returns add up to exactly the line's net. What
+  the customer still owes is reduced first; any remainder is refunded in
+  cash or UPI. A preview mode (`preview: true`) shows the split and
+  writes nothing. Both take the customer lock, then the order lock.
+- Both need an `Idempotency-Key` (except a return preview), and are
+  audited.
 
 ### 10.6 Customer credit
 
@@ -689,7 +703,7 @@ are `timestamptz` in UTC. Money is `NUMERIC(12,2)`.
 | Catalogue | `brands`, `categories`, `products`, `product_identifiers`, `product_images`, `attribute_vocabulary` |
 | Inventory | `locations`, `stock_balances`, `stock_movements`, `stock_counts`, `stock_count_lines` |
 | Purchasing | `suppliers`, `purchase_orders`, `purchase_order_lines`, `goods_receipts`, `goods_receipt_lines` |
-| Orders | `customers`, `orders`, `order_lines` (built); `returns`, `return_lines` (Phase 5b) |
+| Orders | `customers`, `orders`, `order_lines` (built); `returns`, `return_lines` (built, Phase 5b) |
 | Money | `ledger_transactions`, `ledger_entries`, `idempotency_keys` |
 | Delivery | see [Delivery.md §8](Delivery.md#8-data-model) |
 
@@ -776,12 +790,10 @@ different body returns 409.
 | Identifiers | `POST /products/{id}/identifiers`, `DELETE /products/{id}/identifiers/{iid}` |
 | Inventory | `GET /inventory/balances`, `GET /inventory/movements`, `POST /inventory/adjustments`, `POST /inventory/counts` |
 | Purchasing | `GET/POST /suppliers`, `GET/POST /purchase-orders`, `POST /goods-receipts`, `POST /goods-receipts/{id}/confirm` |
-| Orders (built) | `POST /orders/checkout` (one call: confirm, stock out, payment; needs `Idempotency-Key`), `GET /orders`, `GET /orders/{id}` |
-| Orders (5b) | `POST /orders/{id}/cancel`, `POST /orders/{id}/void` |
+| Orders (built) | `POST /orders/checkout` (one call: confirm, stock out, payment; needs `Idempotency-Key`), `GET /orders` (filters include `status`), `GET /orders/{id}`, `POST /orders/{id}/cancel` (`orders.void`; `Idempotency-Key`), `POST /orders/{id}/returns` (`returns.create`; `Idempotency-Key`; `preview: true` writes nothing) |
 | Customers (built) | `GET/POST /customers`, `GET/PATCH /customers/{id}`, `POST /customers/{id}/payments` (needs `Idempotency-Key`) |
 | Receipts | `GET /public/receipts/{token}` (no login, 60/min/IP) |
 | Ledger (later) | `POST /ledger/transactions/{id}/verify`, `POST /ledger/transactions/{id}/reverse` |
-| Returns (5b) | `POST /returns` |
 | Reports | `GET /reports/daily` (built), `/reports/sales`, `/reports/stock`, `/reports/movements`, `/reports/cash` |
 | Admin | `GET/POST/PATCH /users`, `GET/PATCH /settings` |
 | Delivery | see [Delivery.md §7](Delivery.md#7-api) |
@@ -817,6 +829,9 @@ outstanding receivables) · delivery summary.
 
 Every report states its date range, timezone and how it's calculated.
 Revenue is never labelled as profit.
+
+The daily summary reports cancels, returns and refunds on the day they
+happen, so a past day's figures never change when a later undo occurs.
 
 ## 18. Business rules (each one gets a test)
 
@@ -875,9 +890,11 @@ Each phase is a working vertical slice with exit criteria.
 | **7. Go-live readiness** | Reports, audit views, backups + **restore drill**, uptime alerting, staff guide, test on shop devices | [Operations.md](Operations.md) checklist complete |
 | **Later** | Offer board, customer credit, GST go-live, ESC/POS printing, multi-location, payment gateway, accounting export | — |
 
-**Status (6 Nov 2026):** Phase 5a (selling: POS checkout, customers and
+**Status (7 Nov 2026):** Phase 5a (selling: POS checkout, customers and
 credit, ledger, receipts, daily summary) is built on branch
-`phase-5a-sell`; 5b (cancel, returns) is next. Phases 1 and 2 are live. Phase 3 (scanner) is
+`phase-5a-sell`; 5b (cancel a sale, return items, undo figures in the
+daily summary, receipts showing cancels and returns) is built on branch
+`phase-5b-undo`. Phases 1 and 2 are live. Phase 3 (scanner) is
 parked after its spike (§7.5). Phase 4 is built: stock ledger, opening
 and recounts, goods receipts with weighted-average cost, adjustments,
 suppliers and the nightly stock check; its exit criterion is pinned by
