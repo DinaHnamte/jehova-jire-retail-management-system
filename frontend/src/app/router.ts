@@ -127,16 +127,16 @@ export const router = createRouter({
     },
     {
       path: '/driver',
-      component: () => import('./layouts/DriverLayout.vue'),
+      component: () => import('@/modules/driver/DriverLayout.vue'),
       children: [
         {
           path: '',
-          component: () => import('@/modules/deliveries/DriverJobsPage.vue'),
+          component: () => import('@/modules/driver/DriverJobsPage.vue'),
           meta: { perm: 'deliveries.read_own', title: 'My deliveries' },
         },
         {
           path: 'deliveries/:id',
-          component: () => import('@/modules/deliveries/DriverJobPage.vue'),
+          component: () => import('@/modules/driver/DriverJobPage.vue'),
           meta: { perm: 'deliveries.read_own', title: 'Delivery' },
         },
       ],
