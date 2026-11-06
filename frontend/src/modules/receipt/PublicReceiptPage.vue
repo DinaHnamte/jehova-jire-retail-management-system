@@ -75,6 +75,9 @@ const totalNow = computed(() => (receipt.value ? toPaise(receipt.value.total) - 
           <dt class="text-muted">Subtotal</dt><dd class="figure">{{ formatRupees(receipt.subtotal) }}</dd>
           <dt class="text-muted">Discount</dt><dd class="figure">−{{ formatRupees(receipt.order_discount) }}</dd>
         </template>
+        <template v-if="toPaise(receipt.delivery_fee) > 0n">
+          <dt class="text-muted">Delivery</dt><dd class="figure">{{ formatRupees(receipt.delivery_fee) }}</dd>
+        </template>
         <dt class="font-bold">Total</dt><dd class="figure text-xl">{{ formatRupees(receipt.total) }}</dd>
         <template v-if="returned > 0n">
           <dt class="text-muted">Returned</dt><dd class="figure">−{{ formatRupees(fromPaise(returned)) }}</dd>

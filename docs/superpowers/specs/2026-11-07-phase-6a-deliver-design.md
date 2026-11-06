@@ -347,6 +347,12 @@ and returns to the list.
 
 Built on the phone (`shared/whatsapp.ts`), opened with `wa.me`.
 
+> **Note, 7 Nov 2026 (Ruling 10).** As built, the links are made on the
+> server (`orders::whatsapp::wa_link`, like receipt links) and returned
+> on the delivery detail as `driver_whatsapp_url` and
+> `customer_whatsapp_url` (null when there is no driver). The texts
+> below are unchanged; only where they are built differs.
+
 To the driver:
 
 ```

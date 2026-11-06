@@ -3,12 +3,20 @@
 | | |
 |---|---|
 | **Status** | Accepted for implementation (phase 1); phase 2 is a design outline |
-| **Version** | 2.0 |
-| **Last updated** | 5 November 2026 |
+| **Version** | 2.1 |
+| **Last updated** | 7 November 2026 |
 | **Depends on** | [Architecture.md](Architecture.md) §10 (orders and money ledger) |
 | **Replaces** | §21–28 of the [v1 architecture](docs/archive/Architecture-v1.md) |
 
 ---
+
+> **v2.1 (7 Nov 2026).** Phase 6a (dispatch without driver money) is built
+> and changes parts of this document: no delivery zones, no OTP proof,
+> status `to_send` instead of `to_send`, one back-office user,
+> and driver money moved to 6b. The list is in the 6a spec's
+> [Changes from Delivery.md](docs/superpowers/specs/2026-11-07-phase-6a-deliver-design.md#changes-from-deliverymd-v20).
+> Where this document and that spec differ for 6a, the spec is right.
+> Sections changed below are marked.
 
 ## 1. Scope and phasing
 
@@ -18,7 +26,7 @@ So delivery is built in two phases
 
 | Phase | What | When |
 |---|---|---|
-| **1 — Manual dispatch** | A manager assigns each delivery to a known driver. Drivers use a small mobile area of the same app. Delivery fees by zone. Driver cash tracked in the money ledger. | Roadmap phase 6 |
+| **1 — Manual dispatch** | A manager assigns each delivery to a known driver. Drivers use a small mobile area of the same app. Delivery fee typed per order (no zones). Driver cash tracked in the money ledger. | Roadmap phase 6 |
 | **2 — Driver pool** | Self-registration, driver onboarding and document checks, availability, an offer board where drivers accept jobs, notifications. | Once volume or driver count makes manual dispatch a bottleneck |
 
 The phase 1 tables are shaped so phase 2 adds tables without changing
@@ -48,15 +56,15 @@ the software design.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> awaiting_dispatch: order confirmed (packed)
-    awaiting_dispatch --> assigned: manager assigns driver
+    [*] --> to_send: order confirmed (packed)
+    to_send --> assigned: manager assigns driver
     assigned --> assigned: manager reassigns
     assigned --> picked_up: driver collects goods from shop
     picked_up --> delivered: driver confirms with proof
     picked_up --> failed: driver records failed attempt
     failed --> assigned: manager schedules retry
     failed --> returned: shop checks goods back in
-    awaiting_dispatch --> cancelled: manager
+    to_send --> cancelled: manager
     assigned --> cancelled: manager
     delivered --> [*]
     returned --> [*]
@@ -65,7 +73,7 @@ stateDiagram-v2
 
 | Transition | Who | Permission | Side effects |
 |---|---|---|---|
-| → `awaiting_dispatch` | system | — | created when a delivery order is confirmed |
+| → `to_send` | system | — | created when a delivery order is confirmed |
 | → `assigned` | manager | `deliveries.assign` | new `delivery_assignments` row; driver pay set (§6.2) |
 | `assigned` → `assigned` | manager | `deliveries.assign` | previous assignment ended; previous driver loses access |
 | → `picked_up` | assigned driver, or manager | `deliveries.update_own` | payment arrangement **frozen** |
@@ -109,9 +117,11 @@ reference, locality, date, amounts and status.
 
 `settings.delivery_proof`:
 - `recipient_name` (default): the driver types who received the goods.
-- `otp`: a 4-digit code generated at confirmation. It's printed on the
-  customer's copy of the order, or sent by the cashier with a WhatsApp
-  link (§9.3). The driver enters it to confirm delivery.
+  This is the only proof built (6a).
+- `otp` *(later, not in 6a)*: a 4-digit code generated at confirmation.
+  It's printed on the customer's copy of the order, or sent by the
+  cashier with a WhatsApp link (§9.3). The driver enters it to confirm
+  delivery.
 
 No photos in v1.
 
@@ -272,8 +282,6 @@ Both totals come straight from `driver_custody[d]` and
 | Edit arrangement (before pickup) | `PATCH /deliveries/{id}/arrangement` | `deliveries.assign` |
 | Cancel | `POST /deliveries/{id}/cancel` | `deliveries.cancel` |
 | Check in returned goods | `POST /deliveries/{id}/check-in` | `deliveries.check_in` |
-| Fee quote | `POST /delivery-fees/quote` | `orders.create` |
-| Zones | `GET/POST /delivery-zones`, `PATCH /delivery-zones/{id}` | `settings.manage` |
 | My active deliveries | `GET /me/deliveries` | `deliveries.read_own` |
 | My delivery detail | `GET /me/deliveries/{id}` | `deliveries.read_own` |
 | Status update | `POST /me/deliveries/{id}/status` | `deliveries.update_own` |
@@ -284,6 +292,18 @@ Both totals come straight from `driver_custody[d]` and
 | Pay driver | `POST /drivers/{id}/payouts` | `settlements.pay` |
 | Drivers | `GET/POST /drivers`, `PATCH /drivers/{id}` | `drivers.manage` |
 
+**As built in 6a** (endpoint list in
+[Architecture.md §15](Architecture.md#15-api)): a status change that is
+not allowed answers 409 `DELIVERY_STATUS` with `details.status`, and
+the message names the current status in words ("already delivered",
+"out for delivery" and so on). A finished driver's repeat tap is 409,
+not 404. Cancel and check-in refuse with 409 `DELIVERY_OUT` when the
+delivery is out with the driver (message depends on the status).
+Failed and done list items show the last driver. Cancelling from the
+delivery page goes through the sale cancel, sharing one idempotency key
+with the sale page. The daily summary's `discounts` excludes delivery
+fees; fees show as their own "of which delivery fees" line.
+
 `/me/*` endpoints take the driver from the session, never from the
 request. Every money endpoint requires an `Idempotency-Key`.
 
@@ -292,8 +312,7 @@ request. Every money endpoint requires an `Idempotency-Key`.
 | Table | Purpose |
 |---|---|
 | `driver_profiles` | `user_id`, display name, phone, vehicle registration number, default pay, active flag, notes. Phase 1 keeps only the basic compliance fields listed in [Operations.md §4](Operations.md#4-delivery-drivers-legal-and-compliance) |
-| `delivery_zones` | Name, localities covered (text list), fee, active, effective from |
-| `deliveries` | `order_id` (unique), status, zone_id, address snapshot (recipient name, phone, address line, locality, landmark, instructions), proof type, OTP hash, timestamps per status |
+| `deliveries` | `order_id` (unique), status, address snapshot (recipient name, phone, address line, locality, landmark, instructions), proof type, OTP hash, timestamps per status |
 | `delivery_arrangements` | Versioned arrangement (§6.2); `version`, `frozen_at`; a new row for each edit |
 | `delivery_assignments` | driver_id, assigned_by, assigned_at, ended_at, end_reason |
 | `delivery_events` | Immutable status history |
@@ -309,7 +328,7 @@ queries over the ledger.
 ### 9.1 Order entry (cashier)
 
 Choose "Delivery" → recipient and address (prefilled from the customer,
-editable) → zone (sets the fee; manager can override with a reason) →
+editable) → fee (typed in; there are no zones) →
 collector → confirm. The confirmation screen shows: goods, fee, total,
 amount to be collected and by whom.
 
@@ -340,7 +359,7 @@ is enough. Push notifications come with phase 2.
 
 ## 10. Acceptance criteria (v1)
 
-1. A cashier creates a delivery order. The fee comes from the zone, and
+1. A cashier creates a delivery order. The fee is typed in, and
    the total and amount to collect are shown before confirming.
 2. Confirming deducts stock once and posts the receivable.
 3. A manager assigns a driver. The driver sees only their own active
@@ -382,7 +401,7 @@ carried over from v1 §28:
   others get 409 "already taken". After acceptance, the assignment
   works exactly as in phase 1.
 - **Expiry:** an offer that isn't taken goes back to
-  `awaiting_dispatch` and the dispatcher is alerted. The order is never
+  `to_send` and the dispatcher is alerted. The order is never
   auto-cancelled. Notifications are rate-limited.
 - **New tables:** `driver_documents`, `driver_vehicles`,
   `driver_availability`, `delivery_offers`, `delivery_offer_events`.

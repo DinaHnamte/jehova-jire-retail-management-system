@@ -454,12 +454,16 @@ stateDiagram-v2
 
 - There is no stored `completed` status and no stored draft. Whether an
   order is paid is worked out from the ledger. The cart lives on the
-  phone until Charge. Phase 6 may add delivery states.
+  phone until Charge. A delivery order's steps are tracked on its
+  `deliveries` row, not in the order status.
 - A **counter sale** is one "Charge" button that makes a single API
   call (`POST /orders/checkout`).
 - A **delivery order** is confirmed (stock set aside, number assigned)
   and may stay unpaid until the driver collects. Its delivery steps are
-  tracked in [Delivery.md](Delivery.md).
+  tracked in [Delivery.md](Delivery.md). Delivery orders are built
+  (Phase 6a): sold from the Sell screen with a typed fee, and the total
+  is goods plus fee. Cancelling one is allowed only while the delivery
+  is `to_send` or `assigned`; returns only once it is `delivered`.
 - Cancelling (needs `orders.void`) and returning items (needs `returns.create`) are built (Phase 5b, §10.5).
 
 ### 10.2 What happens at confirmation
@@ -493,7 +497,8 @@ zero**; a deferred constraint trigger enforces this. Debits are
 positive, credits negative.
 
 Accounts (`account` + optional `ref_id`). Built so far: `receivable`,
-`cash`, `upi`, `sales_revenue`, `sales_returns`; the rest arrive with their phases.
+`cash`, `upi`, `sales_revenue`, `sales_returns`, `delivery_fee_income`
+(Phase 6a); the rest arrive with their phases.
 
 | Account | ref | Meaning |
 |---|---|---|
@@ -517,7 +522,8 @@ Postings:
 | Customer pays UPI to shop | Dr `upi` · Cr `receivable[o]` |
 | Driver collects cash at the door | Dr `driver_custody[d]` · Cr `receivable[o]` |
 | Driver hands cash to shop | Dr `cash` · Cr `driver_custody[d]` |
-| Cancel a sale | `cancel` txn: Dr `sales_revenue` · Cr `receivable[o]` for the sale total (`reverses_id` = the sale txn; skipped for a ₹0 sale), then one `refund` txn per method paid: Dr `receivable[o]` · Cr `cash` or `upi` |
+| Cancel a sale | `cancel` txn: Dr `sales_revenue` (goods total) · Dr `delivery_fee_income` (current fee) · Cr `receivable[o]` (current total) (`reverses_id` = the sale txn; zero entries are skipped and no txn is written for a ₹0 sale), then one `refund` txn per method paid: Dr `receivable[o]` · Cr `cash` or `upi` |
+| Edit a delivery fee | `fee_adjustment` txn for the difference: Dr `receivable[o]` · Cr `delivery_fee_income` for an increase, the reverse for a decrease (rejected if the customer would be owed money) |
 | Return, owed part | `return_credit` txn: Dr `sales_returns` · Cr `receivable[o]` for min(amount, owed) |
 | Return, refund part | `refund` txn: Dr `sales_returns` · Cr `cash` or `upi` for the rest |
 
@@ -796,7 +802,8 @@ different body returns 409.
 | Ledger (later) | `POST /ledger/transactions/{id}/verify`, `POST /ledger/transactions/{id}/reverse` |
 | Reports | `GET /reports/daily` (built), `/reports/sales`, `/reports/stock`, `/reports/movements`, `/reports/cash` |
 | Admin | `GET/POST/PATCH /users`, `GET/PATCH /settings` |
-| Delivery | see [Delivery.md §7](Delivery.md#7-api) |
+| Deliveries (built, 6a) | `GET /deliveries`, `GET/PATCH /deliveries/{id}`, `POST /deliveries/{id}/assign`, `/status` (owner acting for a driver), `/retry`, `/cancel`, `/check-in`; driver: `GET /me/deliveries` (active jobs plus the last 20 finished), `GET /me/deliveries/{id}`, `POST /me/deliveries/{id}/status`; drivers: `GET/POST /drivers`, `PATCH /drivers/{id}`, `POST /drivers/{id}/password` |
+| Delivery (6b, later) | see [Delivery.md §7](Delivery.md#7-api) |
 
 ## 16. Backend structure
 
@@ -886,7 +893,7 @@ Each phase is a working vertical slice with exit criteria.
 | **3. Scanner** | OCR spike (§7.5), worker, crop, parser + corpus, register and find modes | Register real Ektra products by scanning; corpus accuracy measured and recorded |
 | **4. Inventory + purchasing** | Locations, movements, balances, opening stock count, adjustments, suppliers, goods receipts, weighted-average cost, reconciliation job | Every unit on hand can be traced to a receipt or opening count |
 | **5. Orders + POS + ledger** | Orders, checkout, ledger, document numbers, receipts, discounts, voids, returns, cash report, tax_mode setting | Concurrency and idempotency tests pass; a day's sales reconcile to the till |
-| **6. Delivery v1** | [Delivery.md](Delivery.md) phase 1 | [Delivery.md §10](Delivery.md#10-acceptance-criteria-v1) |
+| **6. Delivery v1** (6a dispatch, 6b driver money) | [Delivery.md](Delivery.md) phase 1 | [Delivery.md §10](Delivery.md#10-acceptance-criteria-v1) |
 | **7. Go-live readiness** | Reports, audit views, backups + **restore drill**, uptime alerting, staff guide, test on shop devices | [Operations.md](Operations.md) checklist complete |
 | **Later** | Offer board, customer credit, GST go-live, ESC/POS printing, multi-location, payment gateway, accounting export | — |
 
@@ -894,7 +901,9 @@ Each phase is a working vertical slice with exit criteria.
 credit, ledger, receipts, daily summary) is built on branch
 `phase-5a-sell`; 5b (cancel a sale, return items, undo figures in the
 daily summary, receipts showing cancels and returns) is built on branch
-`phase-5b-undo`. Phases 1 and 2 are live. Phase 3 (scanner) is
+`phase-5b-undo`; Phase 6a (delivery orders, dispatch, driver area, driver
+accounts) is built on branch `phase-6a-deliver` (not deployed), and 6b
+(driver money) is next. Phases 1 and 2 are live. Phase 3 (scanner) is
 parked after its spike (§7.5). Phase 4 is built: stock ledger, opening
 and recounts, goods receipts with weighted-average cost, adjustments,
 suppliers and the nightly stock check; its exit criterion is pinned by
@@ -908,7 +917,7 @@ the test `every_unit_traces_to_a_confirmed_source`.
 | Which devices: Android phones (Samsung, Realme, …) — answered 5 Nov 2026; exact models still useful for the spike | Phase 3 spike |
 | ~~Receipt printer~~ None; receipts go by WhatsApp (answered 6 Nov 2026) | Phase 5 |
 | ~~Number of cashiers; till open-close?~~ One person, no till (answered 6 Nov 2026) | Phase 5 |
-| Delivery zones and fees; default driver pay per delivery | Phase 6 |
+| ~~Delivery zones and fees; default driver pay per delivery~~ Fee typed per order, no zones; driver pay defaults from the driver's profile (answered 7 Nov 2026) | Phase 6 |
 | ~~Roughly how many products (SKUs) at launch?~~ About 500; lists are paged (answered 5 Nov 2026) | Phase 2 |
 
 ## Appendix A — Naming

@@ -123,7 +123,7 @@ onMounted(async () => {
       <div class="p-5 sm:p-6">
         <h2 id="deact-title" class="text-xl font-bold">Deactivate {{ confirming?.display_name }}?</h2>
         <p class="mt-2 text-muted">
-          {{ confirming?.display_name }} has {{ confirming?.open_jobs }} open deliveries. They stay assigned until you reassign them.
+          {{ confirming?.display_name }} has {{ confirming?.open_jobs }} open {{ confirming?.open_jobs === 1 ? 'delivery' : 'deliveries' }}. They stay assigned until you reassign them.
         </p>
         <div class="mt-6 flex justify-end gap-2">
           <button type="button" class="btn-secondary" @click="confirmDialog?.close()">Keep active</button>
