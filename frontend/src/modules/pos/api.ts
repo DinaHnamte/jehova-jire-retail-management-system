@@ -92,6 +92,10 @@ export interface DailySummary {
   discounts: string
   cash_received: string
   upi_received: string
+  /** Cash + UPI taken that day against that day's sales. */
+  paid_on_these_sales: string
+  /** Cash + UPI taken that day against sales from earlier days. */
+  received_on_older_sales: string
   new_owed: string
   total_owed: string
 }

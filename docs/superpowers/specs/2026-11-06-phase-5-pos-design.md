@@ -252,6 +252,10 @@ For one date (Asia/Kolkata):
   (Σ quantity × list_price − Σ order totals)
 - cash received, UPI received (all payments that day, including later payments)
 - new amount owed (sales total − payments against that day's sales)
+- paid on these sales (payments that day against that day's sales) and
+  received on older sales (payments that day against earlier sales), so
+  sales total = paid on these sales + new owed, and cash + UPI = paid on
+  these sales + received on older sales
 - total owed by all customers right now
 - 5b: cancellations and returns/refunds that day
 

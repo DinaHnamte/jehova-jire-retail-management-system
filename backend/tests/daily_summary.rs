@@ -138,6 +138,11 @@ async fn daily_summary_reconciles(pool: PgPool) {
     assert_eq!(v["upi_received"], "150.00");
     assert_eq!(v["new_owed"], "250.00");
     assert_eq!(v["total_owed"], "300.00");
+    // The card adds up by eye: today's sales were paid for or left owing, and the money
+    // taken today went to today's sales or to older ones.
+    assert_eq!(v["paid_on_these_sales"], "350.00");
+    assert_eq!(v["received_on_older_sales"], "50.00");
+    // 600 = 350 + 250, and 250 + 150 = 350 + 50.
 }
 
 #[sqlx::test]
@@ -154,6 +159,8 @@ async fn daily_summary_other_date_is_empty(pool: PgPool) {
         "upi_received",
         "new_owed",
         "total_owed",
+        "paid_on_these_sales",
+        "received_on_older_sales",
     ] {
         assert_eq!(v[k], "0.00", "{k}");
     }

@@ -93,6 +93,24 @@ pub async fn daily_route(
     )
     .fetch_one(&s.db)
     .await?;
+    // Each payment clears receivables; split what it cleared by whether the sale was made
+    // that day, so sales total = paid on these sales + new owed, and cash + UPI = paid on
+    // these sales + received on older sales.
+    let applied = sqlx::query!(
+        r#"SELECT COALESCE(-SUM(e.amount) FILTER (WHERE o.status = 'confirmed'
+                      AND o.created_at >= $1 AND o.created_at < $2), 0) AS "these!",
+                  COALESCE(-SUM(e.amount) FILTER (WHERE NOT (o.status = 'confirmed'
+                      AND o.created_at >= $1 AND o.created_at < $2)), 0) AS "older!"
+           FROM ledger_entries e
+           JOIN ledger_transactions t ON t.id = e.transaction_id
+           JOIN orders o ON o.id = e.ref_id
+           WHERE t.kind = 'payment' AND e.account = 'receivable'
+             AND t.occurred_at >= $1 AND t.occurred_at < $2"#,
+        from,
+        until
+    )
+    .fetch_one(&s.db)
+    .await?;
     let total_owed = sqlx::query_scalar!(
         r#"SELECT COALESCE(SUM(amount), 0) AS "owed!" FROM ledger_entries WHERE account = 'receivable'"#
     )
@@ -106,6 +124,8 @@ pub async fn daily_route(
         "discounts": money(sales.list_total - sales.total),
         "cash_received": money(received.cash),
         "upi_received": money(received.upi),
+        "paid_on_these_sales": money(applied.these),
+        "received_on_older_sales": money(applied.older),
         "new_owed": money(new_owed),
         "total_owed": money(total_owed),
     })))

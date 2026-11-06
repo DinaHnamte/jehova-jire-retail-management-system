@@ -36,11 +36,13 @@ const figures = computed(() => {
   if (!d) return []
   return [
     { label: 'Sales', value: String(d.sales_count), how: 'Number of sales rung up that day, not counting cancelled ones.' },
-    { label: 'Sales total', value: formatRupees(d.sales_total), how: 'Add up the total of every sale that day, after discounts.' },
+    { label: 'Sales total', value: formatRupees(d.sales_total), how: 'Add up the total of every sale that day, after discounts. Equals paid on these sales plus new amount owed.' },
     { label: 'Discounts given', value: formatRupees(d.discounts), how: 'Usual prices of everything sold, minus what customers were charged.' },
+    { label: 'Paid on these sales', value: formatRupees(d.paid_on_these_sales), how: "Cash and UPI taken that day against that day's sales." },
+    { label: 'New amount owed', value: formatRupees(d.new_owed), how: "That day's sales total minus payments made against those sales." },
     { label: 'Cash received', value: formatRupees(d.cash_received), how: 'All cash taken that day, including payments on older sales.' },
     { label: 'UPI received', value: formatRupees(d.upi_received), how: 'All UPI taken that day, including payments on older sales.' },
-    { label: 'New amount owed', value: formatRupees(d.new_owed), how: "That day's sales total minus payments made against those sales." },
+    { label: 'Received on older sales', value: formatRupees(d.received_on_older_sales), how: 'Cash and UPI taken that day against sales from earlier days. Cash plus UPI equals this plus paid on these sales.' },
     { label: 'Owed by all customers', value: formatRupees(d.total_owed), how: 'What every customer owes right now, whatever the date picked.' },
   ]
 })
