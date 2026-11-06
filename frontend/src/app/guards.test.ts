@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { authGuard } from './guards'
+import { authGuard, needsSession } from './guards'
 
-const route = (path: string, meta: { perm?: string; public?: boolean; guestOnly?: boolean } = {}) => ({
+const route = (path: string, meta: { perm?: string; public?: boolean; guestOnly?: boolean; bare?: boolean } = {}) => ({
   fullPath: path,
   meta,
 })
@@ -30,5 +30,15 @@ describe('authGuard', () => {
 
   it('sends logged-in user away from login page', () => {
     expect(authGuard(route('/login', { public: true, guestOnly: true }), cashier)).toEqual({ path: '/' })
+  })
+
+  it('lets an anonymous visitor open the public receipt without redirecting', () => {
+    expect(authGuard(route('/r/abc', { public: true, bare: true }), anon)).toBe(true)
+  })
+
+  it('does not need a session for bare pages, but does for app pages', () => {
+    expect(needsSession(route('/r/abc', { public: true, bare: true }))).toBe(false)
+    expect(needsSession(route('/login', { public: true, guestOnly: true }))).toBe(true)
+    expect(needsSession(route('/sales'))).toBe(true)
   })
 })

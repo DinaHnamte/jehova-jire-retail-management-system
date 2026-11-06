@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useSessionStore } from '@/modules/auth/session.store'
-import { authGuard } from './guards'
+import { authGuard, needsSession } from './guards'
 import { clearReloadFlag, isChunkLoadError, reloadOnce } from './chunk-reload'
 
 export const router = createRouter({
@@ -10,6 +10,11 @@ export const router = createRouter({
       path: '/login',
       component: () => import('@/modules/auth/LoginPage.vue'),
       meta: { public: true, guestOnly: true, title: 'Sign in' },
+    },
+    {
+      path: '/r/:token',
+      component: () => import('@/modules/receipt/PublicReceiptPage.vue'),
+      meta: { public: true, bare: true, title: 'Receipt' },
     },
     {
       path: '/',
@@ -115,7 +120,7 @@ export const router = createRouter({
 
 router.beforeEach(async (to) => {
   const session = useSessionStore()
-  if (!session.loaded) await session.load().catch(() => {})
+  if (needsSession(to) && !session.loaded) await session.load().catch(() => {})
   return authGuard(to, { isLoggedIn: session.isLoggedIn, can: (p) => session.can(p) })
 })
 

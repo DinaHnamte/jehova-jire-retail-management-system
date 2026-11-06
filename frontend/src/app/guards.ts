@@ -1,11 +1,19 @@
 export interface GuardRoute {
   fullPath: string
-  meta: { perm?: string; public?: boolean; guestOnly?: boolean }
+  meta: { perm?: string; public?: boolean; guestOnly?: boolean; bare?: boolean }
 }
 
 export interface GuardSession {
   isLoggedIn: boolean
   can: (perm: string) => boolean
+}
+
+/**
+ * Bare pages (the customer receipt) are opened by the public on unknown phones. They never need
+ * the staff session, so the router must not call /auth/me for them.
+ */
+export function needsSession(to: Pick<GuardRoute, 'meta'>): boolean {
+  return !to.meta.bare
 }
 
 /** Decide whether a navigation may proceed. Pure, so it can be unit-tested. */

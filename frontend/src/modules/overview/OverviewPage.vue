@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useSessionStore } from '@/modules/auth/session.store'
 import KitchenwareArt from '@/shared/ui/KitchenwareArt.vue'
+import DailySummaryCard from './DailySummaryCard.vue'
 import Badge, { type BadgeTone } from '@/shared/ui/Badge.vue'
 
 const session = useSessionStore()
@@ -80,6 +81,8 @@ const upcoming: Upcoming[] = [
     </div>
     <KitchenwareArt class="-mb-2 mt-4 ml-auto w-full max-w-52 justify-self-end text-ink md:mt-0 md:w-80 md:max-w-none" />
   </section>
+
+  <DailySummaryCard v-if="session.can('reports.read')" />
 
   <h2 class="mt-10 text-2xl font-extrabold">Getting the shop ready</h2>
   <p class="mt-1 max-w-prose text-muted">These parts of the app are being built. Each one appears here once it's switched on.</p>
