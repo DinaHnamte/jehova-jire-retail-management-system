@@ -1,5 +1,6 @@
 //! Deliveries: an order sent to a customer's address, with a fee and a driver (Phase 6a).
 pub mod actions;
+pub mod close;
 pub mod domain;
 pub mod input;
 pub mod messages;
@@ -70,4 +71,6 @@ pub fn router() -> Router<AppState> {
         .route("/deliveries/{id}/assign", post(actions::assign_route))
         .route("/deliveries/{id}/status", post(actions::status_route))
         .route("/deliveries/{id}/retry", post(actions::retry_route))
+        .route("/deliveries/{id}/cancel", post(close::cancel_route))
+        .route("/deliveries/{id}/check-in", post(close::check_in_route))
 }

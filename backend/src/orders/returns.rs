@@ -191,6 +191,17 @@ async fn plan(
     if status == "cancelled" {
         return Err(AppError::not_cancellable());
     }
+    // A delivery order takes returns only once it reached the customer (Ruling 5). The lock
+    // keeps the lock order customer → order → delivery.
+    let delivery = sqlx::query_scalar!(
+        "SELECT status FROM deliveries WHERE order_id = $1 FOR UPDATE",
+        order_id
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    if delivery.is_some_and(|s| s != "delivered") {
+        return Err(AppError::delivery_not_done());
+    }
 
     let ids: Vec<Uuid> = v.lines.iter().map(|l| l.order_line_id).collect();
     let rows = sqlx::query!(

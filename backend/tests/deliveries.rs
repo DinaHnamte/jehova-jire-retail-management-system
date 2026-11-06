@@ -770,9 +770,14 @@ async fn detail_whatsapp_and_maps_links(pool: PgPool) {
         v["maps_url"],
         "https://www.google.com/maps/search/?api=1&query=House%2012%2C%20Chanmari%20West%2C%20Chanmari"
     );
+    let line: Uuid = sqlx::query_scalar("SELECT id FROM order_lines WHERE order_id = $1")
+        .bind(uuid(&o["id"]))
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(
         v["items"],
-        json!([{"name": "Plate", "code": null, "quantity": 2}])
+        json!([{"order_line_id": line, "name": "Plate", "code": null, "quantity": 2}])
     );
     assert_eq!(v["order"]["id"], o["id"]);
     assert_eq!(v["order"]["number"], number);

@@ -90,19 +90,19 @@ fn field(name: &str, message: &str) -> AppError {
     }
 }
 
-struct Event<'a> {
-    id: Uuid,
-    delivery_id: Uuid,
-    from: Status,
-    to: Status,
+pub(crate) struct Event<'a> {
+    pub id: Uuid,
+    pub delivery_id: Uuid,
+    pub from: Status,
+    pub to: Status,
     /// `status` or `edit`.
-    kind: &'a str,
-    actor: Uuid,
-    note: Option<&'a str>,
-    changes: Option<Value>,
+    pub kind: &'a str,
+    pub actor: Uuid,
+    pub note: Option<&'a str>,
+    pub changes: Option<Value>,
 }
 
-async fn event(tx: &mut PgConnection, e: Event<'_>) -> AppResult<()> {
+pub(crate) async fn event(tx: &mut PgConnection, e: Event<'_>) -> AppResult<()> {
     sqlx::query!(
         "INSERT INTO delivery_events (id, delivery_id, from_status, to_status, kind, actor_id,
                                       note, changes)
@@ -121,7 +121,11 @@ async fn event(tx: &mut PgConnection, e: Event<'_>) -> AppResult<()> {
     Ok(())
 }
 
-async fn end_assignment(tx: &mut PgConnection, delivery_id: Uuid, reason: &str) -> AppResult<()> {
+pub(crate) async fn end_assignment(
+    tx: &mut PgConnection,
+    delivery_id: Uuid,
+    reason: &str,
+) -> AppResult<()> {
     sqlx::query!(
         "UPDATE delivery_assignments SET ended_at = now(), end_reason = $2
          WHERE delivery_id = $1 AND ended_at IS NULL",

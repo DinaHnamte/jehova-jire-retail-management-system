@@ -172,6 +172,8 @@ pub struct OrderMoney {
 
 #[derive(Debug, Serialize)]
 pub struct Item {
+    /// What check-in lists each line by.
+    pub order_line_id: Uuid,
     pub name: String,
     pub code: Option<String>,
     pub quantity: i64,
@@ -267,7 +269,7 @@ pub async fn delivery_detail(
     .ok_or(AppError::NotFound)?;
     let items = sqlx::query_as!(
         Item,
-        r#"SELECT product_name AS name, product_code AS code, quantity
+        r#"SELECT id AS order_line_id, product_name AS name, product_code AS code, quantity
            FROM order_lines WHERE order_id = $1 ORDER BY line_no"#,
         d.order_id
     )

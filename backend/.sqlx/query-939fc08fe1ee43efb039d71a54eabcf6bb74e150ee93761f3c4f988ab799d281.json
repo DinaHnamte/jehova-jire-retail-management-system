@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT status, total FROM orders WHERE id = $1 FOR UPDATE",
+  "query": "SELECT status, total, delivery_fee FROM orders WHERE id = $1 FOR UPDATE",
   "describe": {
     "columns": [
       {
@@ -24,6 +24,17 @@
             "name": "total"
           }
         }
+      },
+      {
+        "ordinal": 2,
+        "name": "delivery_fee",
+        "type_info": "Numeric",
+        "origin": {
+          "Table": {
+            "table": "orders",
+            "name": "delivery_fee"
+          }
+        }
       }
     ],
     "parameters": {
@@ -33,8 +44,9 @@
     },
     "nullable": [
       false,
+      false,
       false
     ]
   },
-  "hash": "8329c706a124623a334ded73afe397cdfaa9c3e5fd47fc9ab95aac07d3dff6a2"
+  "hash": "939fc08fe1ee43efb039d71a54eabcf6bb74e150ee93761f3c4f988ab799d281"
 }

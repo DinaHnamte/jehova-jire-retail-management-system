@@ -9,7 +9,7 @@ use axum::{
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use super::read;
@@ -17,6 +17,10 @@ use crate::{
     AppState,
     admin::session::CurrentUser,
     audit,
+    deliveries::{
+        actions::{Event, end_assignment, event},
+        domain::{Action, Status, next_status},
+    },
     error::{AppError, AppResult},
     http::{json::ApiJson, path::ApiPath},
     inventory::{
@@ -24,7 +28,10 @@ use crate::{
         ledger::{self as stock, MovementInput, Source},
     },
     ledger::{self, Account, Method, TxnInput, TxnKind},
-    shared::idempotency::{self, Begin},
+    shared::{
+        idempotency::{self, Begin},
+        ids::new_id,
+    },
 };
 
 #[derive(Deserialize)]
@@ -48,26 +55,30 @@ fn clean_reason(reason: Option<&str>) -> AppResult<Option<String>> {
     Ok(reason.map(str::to_string))
 }
 
-/// Cancels order `order_id`. Returns `(cancelled, response)`: `cancelled` is false for a replay.
-pub async fn cancel(
-    db: &PgPool,
-    actor: Uuid,
-    order_id: Uuid,
-    key: &str,
-    body: Value,
-) -> AppResult<(bool, Value)> {
-    let hash = idempotency::hash_body(&body);
-    let scope = format!("order_cancel:{order_id}");
-    let mut tx = db.begin().await?;
-    if let Begin::Replay(v) = idempotency::begin(&mut tx, actor, &scope, key, &hash).await? {
-        return Ok((false, v));
-    }
-    let req: CancelRequest =
-        serde_json::from_value(body).map_err(|e| AppError::Validation(e.to_string()))?;
-    let reason = clean_reason(req.reason.as_deref())?;
+/// The order as read under its locks: the customer row, then the order row, then its delivery
+/// row if it has one (all `FOR UPDATE`).
+pub struct LockedOrder {
+    pub id: Uuid,
+    pub customer_id: Option<Uuid>,
+    pub status: String,
+    /// What the goods came to: `orders.total − orders.delivery_fee`.
+    pub goods_total: Decimal,
+    /// The delivery's current fee; 0 for a counter sale.
+    pub fee: Decimal,
+    /// What the order comes to now (Ruling 1).
+    pub current_total: Decimal,
+    pub delivery: Option<LockedDelivery>,
+}
 
-    // Lock the customer first, as later payments do, so a payment racing this cancel either
-    // finishes before we read what was paid or waits and then finds nothing owed here.
+pub struct LockedDelivery {
+    pub id: Uuid,
+    pub status: Status,
+}
+
+/// Locks the customer first, as payments do, so a payment racing a cancel either finishes
+/// before we read what was paid or waits and then finds nothing owed here. Then the order,
+/// then its delivery (Constraints: lock order).
+pub async fn lock_order(tx: &mut PgConnection, order_id: Uuid) -> AppResult<LockedOrder> {
     let customer_id = sqlx::query_scalar!("SELECT customer_id FROM orders WHERE id = $1", order_id)
         .fetch_optional(&mut *tx)
         .await?
@@ -78,14 +89,50 @@ pub async fn cancel(
             .await?;
     }
     let order = sqlx::query!(
-        "SELECT status, total FROM orders WHERE id = $1 FOR UPDATE",
+        "SELECT status, total, delivery_fee FROM orders WHERE id = $1 FOR UPDATE",
         order_id
     )
     .fetch_one(&mut *tx)
     .await?;
-    if order.status == "cancelled" {
-        return Err(AppError::not_cancellable());
-    }
+    // Read after the order lock: a fee edit holds that lock while it changes the fee.
+    let delivery = sqlx::query!(
+        "SELECT id, status, fee FROM deliveries WHERE order_id = $1 FOR UPDATE",
+        order_id
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+    let goods_total = order.total - order.delivery_fee;
+    let (fee, delivery) = match delivery {
+        None => (Decimal::ZERO, None),
+        Some(d) => {
+            let status = Status::parse(&d.status).ok_or_else(|| {
+                AppError::Internal(anyhow::anyhow!("delivery status {}", d.status))
+            })?;
+            (d.fee, Some(LockedDelivery { id: d.id, status }))
+        }
+    };
+    Ok(LockedOrder {
+        id: order_id,
+        customer_id,
+        status: order.status,
+        goods_total,
+        fee,
+        current_total: goods_total + fee,
+        delivery,
+    })
+}
+
+/// Reverses the sale (goods and current fee), refunds what was paid per method, puts every line
+/// back on the shelf and marks the order cancelled. The locks must be held and the status
+/// checks done. Returns the refunds as `{method, amount}`.
+pub async fn cancel_core(
+    tx: &mut PgConnection,
+    actor: Uuid,
+    order: &LockedOrder,
+    reason: Option<&str>,
+) -> AppResult<Vec<Value>> {
+    let order_id = order.id;
+    let customer_id = order.customer_id;
     let has_returns = sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM returns WHERE order_id = $1) AS "has!""#,
         order_id
@@ -110,9 +157,9 @@ pub async fn cancel(
     .fetch_all(&mut *tx)
     .await?;
 
-    // Money: reverse the sale, then hand back what was paid, one refund per method.
-    let total = order.total;
-    if !total.is_zero() {
+    // Money: reverse the sale as it stands now (fee edits included), then hand back what was
+    // paid, one refund per method.
+    if !order.current_total.is_zero() {
         let sale_id = sqlx::query_scalar!(
             "SELECT id FROM ledger_transactions WHERE order_id = $1 AND kind = 'sale'",
             order_id
@@ -120,8 +167,16 @@ pub async fn cancel(
         .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(|| AppError::Internal(anyhow::anyhow!("order {order_id} has no sale")))?;
+        let entries = [
+            (Account::SalesRevenue, order.goods_total),
+            (Account::DeliveryFeeIncome, order.fee),
+            (Account::Receivable(order_id), -order.current_total),
+        ]
+        .into_iter()
+        .filter(|(_, amount)| !amount.is_zero())
+        .collect();
         ledger::post(
-            &mut tx,
+            &mut *tx,
             TxnInput {
                 kind: TxnKind::Cancel,
                 order_id: Some(order_id),
@@ -131,10 +186,7 @@ pub async fn cancel(
                 idempotency_key: format!("order:{order_id}:cancel"),
                 note: None,
                 reverses_id: Some(sale_id),
-                entries: vec![
-                    (Account::SalesRevenue, total),
-                    (Account::Receivable(order_id), -total),
-                ],
+                entries,
             },
         )
         .await?;
@@ -151,7 +203,7 @@ pub async fn cancel(
             }
         };
         ledger::post(
-            &mut tx,
+            &mut *tx,
             TxnInput {
                 kind: TxnKind::Refund,
                 order_id: Some(order_id),
@@ -167,7 +219,7 @@ pub async fn cancel(
         .await?;
         refunds.push(json!({ "method": p.method, "amount": money(p.paid) }));
     }
-    let owed = ledger::order_owed(&mut tx, order_id).await?;
+    let owed = ledger::order_owed(&mut *tx, order_id).await?;
     if !owed.is_zero() {
         return Err(AppError::Internal(anyhow::anyhow!(
             "cancelled order {order_id} still owes {owed}"
@@ -192,7 +244,7 @@ pub async fn cancel(
         })
         .collect();
     stock::apply(
-        &mut tx,
+        &mut *tx,
         actor,
         Source {
             source_type: SourceType::Order,
@@ -212,26 +264,111 @@ pub async fn cancel(
     )
     .execute(&mut *tx)
     .await?;
-
-    let response = json!({
-        "id": order_id,
-        "status": "cancelled",
-        "total": money(total),
-        "refunds": refunds,
-        "reason": reason,
-    });
     audit::record(
-        &mut tx,
+        &mut *tx,
         audit::Entry {
             actor_id: Some(actor),
             action: "order.cancel",
             entity_type: "order",
             entity_id: Some(order_id),
             before: Some(json!({ "status": order.status })),
-            after: Some(response.clone()),
+            after: Some(response(order, &refunds, reason)),
         },
     )
     .await?;
+    Ok(refunds)
+}
+
+fn response(order: &LockedOrder, refunds: &[Value], reason: Option<&str>) -> Value {
+    json!({
+        "id": order.id,
+        "status": "cancelled",
+        "total": money(order.current_total),
+        "refunds": refunds,
+        "reason": reason,
+    })
+}
+
+/// A delivery cancelled with its order: closed, the open assignment ended, an event and an
+/// audit row.
+async fn close_delivery(
+    tx: &mut PgConnection,
+    actor: Uuid,
+    d: &LockedDelivery,
+    reason: Option<&str>,
+) -> AppResult<()> {
+    sqlx::query!(
+        "UPDATE deliveries
+         SET status = 'cancelled', closed_at = now(), current_driver_id = NULL, updated_at = now()
+         WHERE id = $1",
+        d.id
+    )
+    .execute(&mut *tx)
+    .await?;
+    end_assignment(tx, d.id, "cancelled").await?;
+    event(
+        tx,
+        Event {
+            id: new_id(),
+            delivery_id: d.id,
+            from: d.status,
+            to: Status::Cancelled,
+            kind: "status",
+            actor,
+            note: reason,
+            changes: None,
+        },
+    )
+    .await?;
+    audit::record(
+        tx,
+        audit::Entry {
+            actor_id: Some(actor),
+            action: "delivery.cancel",
+            entity_type: "delivery",
+            entity_id: Some(d.id),
+            before: Some(json!({ "status": d.status.as_str() })),
+            after: Some(json!({ "status": Status::Cancelled.as_str(), "reason": reason })),
+        },
+    )
+    .await?;
+    Ok(())
+}
+
+/// Cancels order `order_id`, and its delivery if it has one (Ruling 4). Returns
+/// `(cancelled, response)`: `cancelled` is false for a replay.
+pub async fn cancel(
+    db: &PgPool,
+    actor: Uuid,
+    order_id: Uuid,
+    key: &str,
+    body: Value,
+) -> AppResult<(bool, Value)> {
+    let hash = idempotency::hash_body(&body);
+    let scope = format!("order_cancel:{order_id}");
+    let mut tx = db.begin().await?;
+    if let Begin::Replay(v) = idempotency::begin(&mut tx, actor, &scope, key, &hash).await? {
+        return Ok((false, v));
+    }
+    let req: CancelRequest =
+        serde_json::from_value(body).map_err(|e| AppError::Validation(e.to_string()))?;
+    let reason = clean_reason(req.reason.as_deref())?;
+
+    let order = lock_order(&mut tx, order_id).await?;
+    if order.status == "cancelled" {
+        return Err(AppError::not_cancellable());
+    }
+    if let Some(d) = &order.delivery
+        && next_status(d.status, Action::Cancel).is_err()
+    {
+        return Err(AppError::delivery_out());
+    }
+    let refunds = cancel_core(&mut tx, actor, &order, reason.as_deref()).await?;
+    if let Some(d) = &order.delivery {
+        close_delivery(&mut tx, actor, d, reason.as_deref()).await?;
+    }
+
+    let response = response(&order, &refunds, reason.as_deref());
     idempotency::finish(&mut tx, actor, &scope, key, &response).await?;
     tx.commit().await?;
     Ok((true, response))

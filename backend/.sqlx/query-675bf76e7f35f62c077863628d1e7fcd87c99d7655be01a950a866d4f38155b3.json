@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE deliveries\n         SET status = 'cancelled', closed_at = now(), current_driver_id = NULL, updated_at = now()\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "675bf76e7f35f62c077863628d1e7fcd87c99d7655be01a950a866d4f38155b3"
+}

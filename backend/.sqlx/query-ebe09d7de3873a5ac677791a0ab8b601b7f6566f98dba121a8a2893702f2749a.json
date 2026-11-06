@@ -1,27 +1,27 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT product_name AS name, product_code AS code, quantity\n           FROM order_lines WHERE order_id = $1 ORDER BY line_no",
+  "query": "SELECT id, product_id, quantity FROM order_lines WHERE order_id = $1 ORDER BY line_no",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "name",
-        "type_info": "Text",
+        "name": "id",
+        "type_info": "Uuid",
         "origin": {
           "Table": {
             "table": "order_lines",
-            "name": "product_name"
+            "name": "id"
           }
         }
       },
       {
         "ordinal": 1,
-        "name": "code",
-        "type_info": "Text",
+        "name": "product_id",
+        "type_info": "Uuid",
         "origin": {
           "Table": {
             "table": "order_lines",
-            "name": "product_code"
+            "name": "product_id"
           }
         }
       },
@@ -44,9 +44,9 @@
     },
     "nullable": [
       false,
-      true,
+      false,
       false
     ]
   },
-  "hash": "bd627f13ba9a96712a5d625b62c7675a1930ec15b44133443bf3e0c84d0597cd"
+  "hash": "ebe09d7de3873a5ac677791a0ab8b601b7f6566f98dba121a8a2893702f2749a"
 }
