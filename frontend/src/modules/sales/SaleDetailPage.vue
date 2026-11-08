@@ -101,9 +101,14 @@ const canReturn = computed(
     </ul>
 
     <dl class="mt-3 grid grid-cols-[1fr_auto] gap-y-1.5">
-      <template v-if="toPaise(order.order_discount) > 0n">
+      <template v-if="toPaise(order.order_discount) > 0n || toPaise(order.delivery_fee) > 0n">
         <dt class="text-muted">Subtotal</dt><dd class="figure">{{ formatRupees(order.subtotal) }}</dd>
+      </template>
+      <template v-if="toPaise(order.order_discount) > 0n">
         <dt class="text-muted">Discount</dt><dd class="figure">−{{ formatRupees(order.order_discount) }}</dd>
+      </template>
+      <template v-if="toPaise(order.delivery_fee) > 0n">
+        <dt class="text-muted">Delivery</dt><dd class="figure">{{ formatRupees(order.delivery_fee) }}</dd>
       </template>
       <dt class="font-bold">Total</dt><dd class="figure text-xl">{{ formatRupees(order.total) }}</dd>
       <template v-if="returned > 0n">

@@ -250,6 +250,9 @@ onBeforeUnmount(() => {
         <dl class="mt-3 space-y-1 text-right text-muted">
           <div class="flex justify-between"><dt>Subtotal</dt><dd>{{ formatRupees(store.totals.subtotal) }}</dd></div>
           <div v-if="store.orderDiscount !== '0.00'" class="flex justify-between"><dt>Discount</dt><dd>−{{ formatRupees(store.totals.discount) }}</dd></div>
+          <div v-if="store.fulfilment === 'delivery'" class="flex justify-between">
+            <dt>Delivery</dt><dd>{{ parseMoneyInput(store.delivery.fee) ? formatRupees(parseMoneyInput(store.delivery.fee)!) : 'Fee not set' }}</dd>
+          </div>
         </dl>
       </div>
     </section>

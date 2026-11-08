@@ -7,7 +7,7 @@ import { checkout, lastAddress, type CheckoutPayment, type OrderDetail } from '.
 import { useCartStore } from './cart.store'
 import CustomerPicker from './CustomerPicker.vue'
 import DeliveryFields from './DeliveryFields.vue'
-import { collectLine, draftErrors, draftFromLastAddress, prefillValues } from './delivery'
+import { collectLine, draftErrors, draftFromLastAddress, missingLine, prefillValues } from './delivery'
 
 const emit = defineEmits<{
   done: [order: OrderDetail]
@@ -101,6 +101,8 @@ const hasCustomer = computed(() => !!(store.customer || store.newCustomer))
 const needsCustomer = computed(() => (owing.value > 0n || isDelivery.value) && !hasCustomer.value)
 const deliveryOk = computed(() => Object.keys(localErrors.value).length === 0)
 const canCharge = computed(() => store.valid && inputsOk.value && deliveryOk.value && !overpaid.value && !needsCustomer.value && !busy.value)
+/** Which delivery fields still stop the sale, shown beside Charge so a blocked tap is never silent. */
+const missing = computed(() => missingLine(localErrors.value))
 
 function payLater() {
   cash.value = '0'
@@ -108,8 +110,11 @@ function payLater() {
 }
 
 async function charge() {
+  if (busy.value) return
   if (!canCharge.value) {
     showErrors.value = true
+    // Take the owner to the first delivery field that needs them.
+    nextTick(() => dialog.value?.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus())
     return
   }
   error.value = null
@@ -219,9 +224,10 @@ function handleError(e: unknown) {
 
       <DeliveryFields v-if="isDelivery" :model-value="store.delivery" :errors="fieldErrors" :disabled="pending" @update:model-value="store.setDelivery" />
 
+      <p v-if="isDelivery && missing" role="status" class="mt-4 text-sm font-medium" :class="showErrors ? 'text-danger' : 'text-golden-ink'">{{ missing }}</p>
       <div class="mt-6 flex justify-end gap-2">
         <button type="button" class="btn-secondary" @click="dialog?.close()">Back</button>
-        <button type="submit" class="btn-primary" :disabled="!canCharge">{{ busy ? 'Charging…' : 'Charge' }}</button>
+        <button type="submit" class="btn-primary" :disabled="busy || !store.valid" :aria-disabled="!canCharge">{{ busy ? 'Charging…' : 'Charge' }}</button>
       </div>
     </form>
   </dialog>

@@ -13,6 +13,7 @@ defineEmits<{ newSale: [] }>()
     <Badge tone="sage" dot>Sale done</Badge>
     <h1 id="done-h" class="mt-3 text-xl font-bold">{{ order.number }}</h1>
     <p class="figure mt-3 text-5xl">{{ formatRupees(order.total) }}</p>
+    <p v-if="toPaise(order.delivery_fee) > 0n" class="mt-1 text-sm text-muted">Includes delivery {{ formatRupees(order.delivery_fee) }}</p>
     <dl class="mt-5 grid grid-cols-2 gap-3 text-left">
       <div class="rounded-control bg-canvas px-4 py-3">
         <dt class="text-sm text-muted">Paid</dt>

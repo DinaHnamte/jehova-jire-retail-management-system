@@ -117,6 +117,28 @@ export function draftErrors(d: DeliveryDraft): Record<string, string> {
   return e
 }
 
+const fieldNames: [string, string][] = [
+  ['delivery.recipient_name', 'recipient name'],
+  ['delivery.recipient_phone', 'recipient phone'],
+  ['delivery.address_line', 'address'],
+  ['delivery.locality', 'locality'],
+  ['delivery.fee', 'delivery fee'],
+  ['delivery.driver_pay', 'driver pay'],
+]
+
+/**
+ * One line next to the Charge button saying which delivery fields stop the sale, in screen
+ * order ("Fill in the address and delivery fee."); "Fix" when one holds a bad amount. Null when
+ * none do.
+ */
+export function missingLine(errors: Record<string, string>): string | null {
+  const names = fieldNames.filter(([k]) => errors[k]).map(([, n]) => n)
+  if (names.length === 0) return null
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+  const bad = fieldNames.some(([k]) => errors[k]?.startsWith('Enter an amount'))
+  return `${bad ? 'Fix' : 'Fill in'} the ${list}.`
+}
+
 /** The line under the amount fields: who collects what is owing. */
 export function collectLine(collector: 'driver' | 'shop', owingPaise: bigint): string {
   if (owingPaise <= 0n) return 'Paid in full'

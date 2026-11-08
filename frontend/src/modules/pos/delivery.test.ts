@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectLine, deliveryBody, draftErrors, draftFromLastAddress, emptyDraft, prefillValues, totalWithFee } from './delivery'
+import { collectLine, deliveryBody, draftErrors, draftFromLastAddress, emptyDraft, missingLine, prefillValues, totalWithFee } from './delivery'
 
 const full = () => ({
   ...emptyDraft(),
@@ -131,5 +131,21 @@ describe('collectLine', () => {
     expect(collectLine('driver', 25000n)).toBe('Driver collects ₹250.00')
     expect(collectLine('shop', 25000n)).toBe('You collect ₹250.00')
     expect(collectLine('driver', 0n)).toBe('Paid in full')
+  })
+})
+
+describe('missingLine', () => {
+  it('is null when nothing is missing', () => {
+    expect(missingLine(draftErrors(full()))).toBeNull()
+  })
+  it('names one missing field', () => {
+    expect(missingLine(draftErrors({ ...full(), fee: '' }))).toBe('Fill in the delivery fee.')
+  })
+  it('names several missing fields in screen order', () => {
+    const e = draftErrors({ ...emptyDraft(), recipientName: 'A', recipientPhone: '1' })
+    expect(missingLine(e)).toBe('Fill in the address, locality and delivery fee.')
+  })
+  it('counts a bad amount as a field to fix', () => {
+    expect(missingLine(draftErrors({ ...full(), fee: 'abc', driverPay: 'x' }))).toBe('Fix the delivery fee and driver pay.')
   })
 })
